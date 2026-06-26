@@ -1,0 +1,23 @@
+# 🛑 SECURITY: Never commit secrets!
+.env
+
+# 🐍 BACKEND: Python & Virtual Environments
+backend/venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# ⚛️ FRONTEND: Node.js & React Build Files
+frontend/node_modules/
+node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-error.log*
+
+# 💻 OS / Editor Files
+.DS_Store
+.vscode/
+.idea/
