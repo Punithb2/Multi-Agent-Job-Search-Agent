@@ -72,7 +72,7 @@ async def start_job_search(
         }
         
         # 7. Execute the LangGraph workflow
-        final_state = workflow_app.invoke(initial_state)
+        final_state = await workflow_app.ainvoke(initial_state)
         
         print("✅ API Workflow Complete!")
         
