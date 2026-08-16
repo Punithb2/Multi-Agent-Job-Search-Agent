@@ -4,6 +4,6 @@ python-multipart
 pypdf
 langgraph
 langchain-google-genai
-langchain-tavily-search
+langchain-tavily
 pydantic
 python-dotenv

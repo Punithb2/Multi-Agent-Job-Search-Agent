@@ -20,6 +20,7 @@ class JobListing(BaseModel):
     title: str
     company: str
     description: str
+    url: str
 
 class JobExtraction(BaseModel):
     jobs: List[JobListing]

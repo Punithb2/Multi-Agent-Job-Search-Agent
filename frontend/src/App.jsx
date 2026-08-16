@@ -86,7 +86,23 @@ function App() {
       {/* The Results Dashboard */}
       {results && !loading && (
         <div className="results-container">
-          
+          {results.jobs_found && results.jobs_found.length > 0 && (
+            <div className="result-card">
+              <h2>🔍 Jobs Found</h2>
+              {results.jobs_found.map((job, i) => (
+                <div key={i} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #eee' }}>
+                  <h3>{job.title} — {job.company}</h3>
+                  <p>{job.description}</p>
+                  {job.url && (
+                    <a href={job.url} target="_blank" rel="noopener noreferrer">
+                      Apply / View Listing →
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="result-card">
             <h2>🎓 Skill Gap Analysis</h2>
             {/* ReactMarkdown turns the AI's raw text into clean HTML */}

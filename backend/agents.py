@@ -40,13 +40,17 @@ def supervisor_node(state: AgentState):
 
 def job_researcher_node(state: AgentState):
     print("🔍 Researcher: Scouring the web...")
-    search_query = f"recent job descriptions and requirements for {state['target_role']}"
+    search_query = f"recent job openings and requirements for {state['target_role']}"
     raw_results = tavily_tool.invoke(search_query)
-    
+
     extractor = llm.with_structured_output(JobExtraction)
-    prompt = f"Extract the job listings from this raw web data. Use 'Unknown' if company is missing. Data: {raw_results}"
+    prompt = f"""
+    Extract the job listings from this raw web search data.
+    For each listing, include the exact source URL so the user can click through and apply.
+    Use 'Unknown' for company if missing. If no URL is present for a listing, omit it — do not invent one.
+    Data: {raw_results}
+    """
     structured_data = extractor.invoke(prompt)
-    
     return {"job_descriptions": [job.model_dump() for job in structured_data.jobs]}
 
 def skill_gap_node(state: AgentState):
