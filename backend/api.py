@@ -5,6 +5,7 @@ from pypdf import PdfReader
 import io
 from state import JobSearchRequest
 from graph import workflow_app
+import os
 
 # 1. Initialize the API
 app = FastAPI(title="Job Search AI Backend")
@@ -17,6 +18,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- mock mode flag + sample data ---
+MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
+
+MOCK_FINAL_STATE = {
+    "job_descriptions": [
+        {
+            "title": "Machine Learning Engineer",
+            "company": "Acme AI Corp",
+            "description": "Build and deploy ML models at scale. Work with PyTorch, TensorFlow, and cloud infra.",
+            "url": "https://example.com/jobs/ml-engineer-acme"
+        },
+        {
+            "title": "AI Engineer",
+            "company": "Nexus IT Group",
+            "description": "Design conversational AI systems using LLMs and vector search.",
+            "url": "https://example.com/jobs/ai-engineer-nexus"
+        }
+    ],
+    "skill_analysis": "## Skill Gap Analysis\n\n**Strengths:** Python, FastAPI, PyTorch\n\n**Gaps:** LLM APIs, vector databases, prompt engineering\n\n### Recommended Projects\n1. Build a RAG chatbot\n2. Fine-tune an open-source LLM",
+    "tailored_resume": "## Punith B\n**AI/ML Engineer**\n\nExperienced in building end-to-end ML pipelines...\n\n### Projects\n- OMNIMESH AI: 2D sketch to 3D reconstruction\n- RESUMIZER: NLP resume classifier",
+    "cover_letter": "Dear Hiring Manager,\n\nI am writing to express interest in the AI Engineer role...\n\nSincerely,\nPunith B"
+}
 
 # 3. Define Endpoints
 @app.get("/")
@@ -72,7 +96,11 @@ async def start_job_search(
         }
         
         # 7. Execute the LangGraph workflow
-        final_state = await workflow_app.ainvoke(initial_state)
+        if MOCK_MODE:
+          print("🧪 MOCK MODE: Skipping real agent workflow, returning sample data")
+          final_state = MOCK_FINAL_STATE
+        else:
+          final_state = await workflow_app.ainvoke(initial_state)
         
         print("✅ API Workflow Complete!")
         
