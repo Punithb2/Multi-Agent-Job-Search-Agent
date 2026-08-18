@@ -34,15 +34,8 @@ def supervisor_node(state: AgentState):
     print("👑 Supervisor: Routing workflow...")
     if not state.get("research_attempted"):
         return {"next_agent": "researcher"}
-    if not state.get("job_descriptions"):
-        print("⚠️ No jobs found — ending workflow early to avoid wasted calls.")
-        return {"next_agent": "FINISH"}
-    elif not state.get("skill_analysis"):
-        return {"next_agent": "skill_gap"}
-    elif not state.get("tailored_resume"):
-        return {"next_agent": "resume_tailor"}
-    elif not state.get("cover_letter"):
-        return {"next_agent": "cover_letter"}
+    # Searching is intentionally a separate step. The application routes a
+    # selected listing to the analysis agents only when the user asks for it.
     return {"next_agent": "FINISH"}
 
 
@@ -118,12 +111,12 @@ def job_researcher_node(state: AgentState):
 
 def skill_gap_node(state: AgentState):
     print("🎓 Skill Gap Advisor: Analyzing...")
-    jobs_text = "\n".join([f"- {j['title']}: {j['description']}" for j in state.get("job_descriptions", [])])
+    target_job = state.get("selected_job") or {}
 
     prompt = f"""
     Analyze the skill gap.
     Resume: {state['base_resume']}
-    Jobs: {jobs_text}
+    Selected job: {target_job}
     Output a structured gap analysis and project recommendations.
     """
     response = invoke_with_retry(llm, prompt)
@@ -132,7 +125,7 @@ def skill_gap_node(state: AgentState):
 
 def resume_tailor_node(state: AgentState):
     print("📄 Resume Tailor: Rewriting...")
-    jobs_text = "\n".join([f"- {j['title']}: {j['description']}" for j in state.get("job_descriptions", [])])
+    target_job = state.get("selected_job") or {}
 
     prompt = f"""
     Rewrite this resume to match the target jobs. Use the gap analysis to emphasize transferable skills. DO NOT invent experience.
@@ -142,7 +135,7 @@ def resume_tailor_node(state: AgentState):
     If you notice something that looks like a date inconsistency, leave the original date exactly as given in the source resume — do not silently correct or annotate it.
 
     Resume: {state['base_resume']}
-    Jobs: {jobs_text}
+    Selected job: {target_job}
     Gap Analysis: {state.get('skill_analysis', '')}
     """
     response = invoke_with_retry(llm, prompt)
@@ -151,8 +144,7 @@ def resume_tailor_node(state: AgentState):
 
 def cover_letter_node(state: AgentState):
     print("✍️ Cover Letter Agent: Drafting...")
-    jobs = state.get("job_descriptions", [])
-    target_job = jobs[0] if jobs else {"title": "Unknown", "company": "Unknown", "description": ""}
+    target_job = state.get("selected_job") or {"title": "Unknown", "company": "Unknown", "description": ""}
 
     prompt = f"""
     Write a 3-4 paragraph cover letter for this job using the tailored resume.
@@ -160,7 +152,7 @@ def cover_letter_node(state: AgentState):
     Use the candidate's actual name, email, and phone number as they appear in the resume — never use placeholder text like "[Your Name]" or "[Your Email]". If a detail genuinely isn't available in the resume, omit it rather than inserting a bracketed placeholder.
 
     Output ONLY the cover letter itself — no explanation, no meta-commentary.
-    Resume: {state.get('tailored_resume', '')}
+    Resume: {state.get('tailored_resume') or state['base_resume']}
     Target Job: {target_job}
     """
     response = invoke_with_retry(llm, prompt)

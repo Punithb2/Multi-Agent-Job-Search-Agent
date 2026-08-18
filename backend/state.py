@@ -10,6 +10,7 @@ class AgentState(TypedDict):
     experience_level: str
     date_posted: str
     job_descriptions: List[dict]
+    selected_job: dict
     research_attempted: bool
     skill_analysis: str
     tailored_resume: str
