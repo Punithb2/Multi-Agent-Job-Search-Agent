@@ -5,8 +5,12 @@ from pydantic import BaseModel
 class AgentState(TypedDict):
     base_resume: str
     target_role: str
+    location: str
+    remote_only: bool
+    experience_level: str
+    date_posted: str
     job_descriptions: List[dict]
-    research_attempted: bool   # <-- new
+    research_attempted: bool
     skill_analysis: str
     tailored_resume: str
     cover_letter: str

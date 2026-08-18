@@ -43,6 +43,10 @@ function App() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('research');
   const [copied, setCopied] = useState('');
+  const [location, setLocation] = useState('');
+  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [experienceLevel, setExperienceLevel] = useState('any');
+  const [datePosted, setDatePosted] = useState('all');
   const fileInputRef = useRef(null);
 
   const handleSubmit = async (event) => {
@@ -55,6 +59,10 @@ function App() {
     const formData = new FormData();
     formData.append('target_role', targetRole.trim());
     formData.append('resume_pdf', resumeFile);
+    formData.append('location', location.trim());
+    formData.append('remote_only', remoteOnly ? 'true' : 'false');
+    formData.append('experience_level', experienceLevel);
+    formData.append('date_posted', datePosted);
     setLoading(true);
     try {
       const response = await axios.post(`${API_URL}/api/search/start`, formData);
@@ -120,6 +128,34 @@ function App() {
           <div className="form-grid">
             <label className="field-label"><span>Target role</span><input type="text" placeholder="e.g. Product Designer" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} disabled={loading} /></label>
             <div className="field-label"><span>Resume</span><input ref={fileInputRef} className="visually-hidden" id="resume-upload" type="file" accept="application/pdf" onChange={(event) => setResumeFile(event.target.files?.[0] || null)} disabled={loading} /><label className={`file-picker ${resumeFile ? 'has-file' : ''}`} htmlFor="resume-upload"><span className="file-icon"><Icon name={resumeFile ? 'document' : 'upload'} size={18} /></span><span className="file-copy"><strong>{resumeFile ? resumeFile.name : 'Choose a PDF resume'}</strong><small>{resumeFile ? `${Math.max(1, Math.round(resumeFile.size / 1024))} KB ready to analyze` : 'PDF, up to 10 MB'}</small></span><span className="file-action">Browse</span></label></div>
+          </div>
+          <div className="filters-grid">
+            <label className="field-label">
+             <span>Location (optional)</span>
+             <input type="text" placeholder="e.g. Bengaluru, Delhi" value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading} />
+            </label>
+            <label className="field-label">
+             <span>Experience level</span>
+             <select value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)} disabled={loading}>
+              <option value="any">Any experience</option>
+              <option value="entry">Entry-level (0–2 yrs)</option>
+              <option value="experienced">Experienced (3+ yrs)</option>
+             </select>
+            </label>
+            <label className="field-label">
+             <span>Posted within</span>
+             <select value={datePosted} onChange={(e) => setDatePosted(e.target.value)} disabled={loading}>
+              <option value="all">Any time</option>
+              <option value="today">Past 24 hours</option>
+              <option value="3days">Past 3 days</option>
+              <option value="week">Past week</option>
+              <option value="month">Past month</option>
+             </select>
+            </label>
+            <label className="filter-checkbox">
+             <input type="checkbox" checked={remoteOnly} onChange={(e) => setRemoteOnly(e.target.checked)} disabled={loading} />
+             <span>Remote only</span>
+            </label>
           </div>
           {error && <div className="error-message" role="alert">{error}</div>}
           <div className="form-footer"><p>We will research current opportunities and create application-ready materials.</p><button className="primary-button" type="submit" disabled={loading}>{loading ? <><span className="spinner" /> Building your strategy</> : <>Start career analysis <Icon name="arrow" size={18} /></>}</button></div>

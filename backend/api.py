@@ -50,7 +50,11 @@ def read_root():
 @app.post("/api/search/start")
 async def start_job_search(
     target_role: str = Form(..., min_length=2, max_length=100),
-    resume_pdf: UploadFile = File(...)
+    resume_pdf: UploadFile = File(...),
+    location: str = Form(""),
+    remote_only: bool = Form(False),
+    experience_level: str = Form("any"),
+    date_posted: str = Form("all"),
 ):
     try:
         print(f"\n🚀 API Triggered: Starting workflow for '{target_role}'")
@@ -92,7 +96,11 @@ async def start_job_search(
         # 6. Setup the clipboard for LangGraph
         initial_state = {
             "base_resume": extracted_text,
-            "target_role": target_role
+            "target_role": target_role,
+            "location": location,
+            "remote_only": remote_only,
+            "experience_level": experience_level,
+            "date_posted": date_posted,
         }
         
         # 7. Execute the LangGraph workflow
