@@ -6,6 +6,7 @@ class AgentState(TypedDict):
     base_resume: str
     target_role: str
     job_descriptions: List[dict]
+    research_attempted: bool   # <-- new
     skill_analysis: str
     tailored_resume: str
     cover_letter: str
@@ -17,13 +18,13 @@ class Route(BaseModel):
 
 # 3. Web Scraping Extraction Models
 class JobListing(BaseModel):
+    job_id: str = ""
     title: str
     company: str
     description: str
     url: str = ""
-
-class JobExtraction(BaseModel):
-    jobs: List[JobListing]
+    location: str = ""
+    employment_type: str = ""
 
 # 4. FastAPI Incoming Request Model
 class JobSearchRequest(BaseModel):
