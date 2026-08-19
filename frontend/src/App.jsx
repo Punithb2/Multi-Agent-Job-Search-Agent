@@ -42,7 +42,7 @@ function App() {
   };
   const returnHome = () => { setPage('search'); setJobs([]); setSelectedJob(null); setMaterials({}); setError(''); };
 
-  return <main className="app-shell"><nav className="topbar"><button className="brand plain-button" onClick={returnHome}><span className="brand-mark"><Icon name="spark" /></span><span>career<span>atlas</span></span></button><span className="topbar-status">AI job search studio</span></nav>
+  return <main className="app-shell"><nav className="topbar"><button className="brand plain-button" onClick={returnHome}><span className="brand-mark"><Icon name="spark" /></span><span>career<span>atlas</span></span></button></nav>
     {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume, filters, setFilters, error, loading, onSearch: searchJobs }} />}
     {page === 'jobs' && <JobsPage jobs={jobs} role={role} error={error} onBack={() => setPage('search')} onSelectJob={selectJob} />}
     {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} loading={loading} error={error} onBack={() => setPage('jobs')} onGenerate={generateMaterial} />}

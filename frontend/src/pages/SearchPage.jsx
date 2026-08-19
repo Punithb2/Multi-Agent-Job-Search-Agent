@@ -4,7 +4,101 @@ import { ErrorMessage, Icon } from '../components/ui';
 export default function SearchPage({ role, setRole, resume, setResume, filters, setFilters, error, loading, onSearch }) {
   const fileInput = useRef(null);
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
-  const submit = (event) => { event.preventDefault(); onSearch(); };
+  const submit = (event) => {
+    event.preventDefault();
+    onSearch();
+  };
 
-  return <section><div className="hero"><span className="eyebrow">Your next move, made clearer</span><h1>Find the role.<br /><em>Then tailor your case.</em></h1><p>Search live opportunities first. Pick a job, then generate materials specifically for it.</p></div><section className="workflow-card"><div className="workflow-heading"><div><span className="section-kicker">Step 1 of 2</span><h2>Search for matching jobs</h2></div><span className="secure-note">Private by design</span></div><form onSubmit={submit}><div className="form-grid"><label className="field-label"><span>Target role</span><input value={role} onChange={(event) => setRole(event.target.value)} placeholder="e.g. Machine Learning Engineer" disabled={loading === 'search'} /></label><div className="field-label"><span>Resume</span><input ref={fileInput} className="visually-hidden" id="resume-upload" type="file" accept="application/pdf" onChange={(event) => setResume(event.target.files?.[0] || null)} /><label className={`file-picker ${resume ? 'has-file' : ''}`} htmlFor="resume-upload"><Icon name={resume ? 'document' : 'upload'} /><span className="file-copy"><strong>{resume?.name || 'Choose a PDF resume'}</strong><small>{resume ? 'Ready for job-specific tailoring' : 'PDF, maximum 5 MB'}</small></span><span className="file-action">Browse</span></label></div></div><div className="filters-grid"><label className="field-label"><span>Location</span><input value={filters.location} onChange={(event) => updateFilter('location', event.target.value)} placeholder="Optional" /></label><label className="field-label"><span>Experience</span><select value={filters.experience} onChange={(event) => updateFilter('experience', event.target.value)}><option value="any">Any experience</option><option value="entry">Entry-level</option><option value="experienced">Experienced</option></select></label><label className="field-label"><span>Posted within</span><select value={filters.date} onChange={(event) => updateFilter('date', event.target.value)}><option value="all">Any time</option><option value="today">Past 24 hours</option><option value="week">Past week</option><option value="month">Past month</option></select></label><label className="filter-checkbox"><input type="checkbox" checked={filters.remote} onChange={(event) => updateFilter('remote', event.target.checked)} />Remote only</label></div>{error && <ErrorMessage text={error} />}<div className="form-footer"><p>Your resume is only analyzed when you request material for a selected job.</p><button className="primary-button" disabled={loading === 'search'}>{loading === 'search' ? 'Searching jobs...' : <>Search jobs <Icon name="arrow" /></>}</button></div></form></section></section>;
+  return (
+    <section>
+      <div className="hero">
+        <span className="eyebrow">Your next move, made clearer</span>
+        <h1>Find the role.<br /><em>Then tailor your case.</em></h1>
+        <p>Search live opportunities first. Pick a job, then generate materials specifically for it.</p>
+      </div>
+      <section className="workflow-card">
+        <div className="workflow-heading">
+          <div>
+            <span className="section-kicker">Step 1 of 2</span>
+            <h2>Search for matching jobs</h2>
+          </div>
+        </div>
+        <form onSubmit={submit}>
+          <div className="form-grid">
+            <label className="field-label">
+              <span>Target role</span>
+              <input
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                placeholder="e.g. Machine Learning Engineer"
+                disabled={loading === 'search'}
+              />
+            </label>
+            <div className="field-label">
+              <span>Resume</span>
+              <input
+                ref={fileInput}
+                className="visually-hidden"
+                id="resume-upload"
+                type="file"
+                accept="application/pdf"
+                onChange={(event) => setResume(event.target.files?.[0] || null)}
+              />
+              <label className={`file-picker ${resume ? 'has-file' : ''}`} htmlFor="resume-upload">
+                <Icon name={resume ? 'document' : 'upload'} />
+                <span className="file-copy">
+                  <strong>{resume?.name || 'Choose a PDF resume'}</strong>
+                  <small>{resume ? 'Ready for job-specific tailoring' : 'PDF, maximum 5 MB'}</small>
+                </span>
+                <span className="file-action">Browse</span>
+              </label>
+            </div>
+          </div>
+          <div className="filters-grid">
+            <label className="field-label">
+              <span>Location</span>
+              <input
+                value={filters.location}
+                onChange={(event) => updateFilter('location', event.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+            <label className="field-label">
+              <span>Experience</span>
+              <select value={filters.experience} onChange={(event) => updateFilter('experience', event.target.value)}>
+                <option value="any">Any experience</option>
+                <option value="entry">Entry-level</option>
+                <option value="experienced">Experienced</option>
+              </select>
+            </label>
+            <label className="field-label">
+              <span>Posted within</span>
+              <select value={filters.date} onChange={(event) => updateFilter('date', event.target.value)}>
+                <option value="all">Any time</option>
+                <option value="today">Past 24 hours</option>
+                <option value="week">Past week</option>
+                <option value="month">Past month</option>
+              </select>
+            </label>
+            <label className="filter-checkbox">
+              <input
+                type="checkbox"
+                checked={filters.remote}
+                onChange={(event) => updateFilter('remote', event.target.checked)}
+              />
+              Remote only
+            </label>
+          </div>
+          {error && <ErrorMessage text={error} />}
+          <div className="form-footer">
+            <p>Your resume is only analyzed when you request material for a selected job.</p>
+            <button className="primary-button" disabled={loading === 'search'}>
+              {loading === 'search' ? 'Searching jobs...' : <>Search jobs <Icon name="arrow" /></>}
+            </button>
+          </div>
+        </form>
+      </section>
+    </section>
+  );
 }
+
