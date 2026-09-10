@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ErrorMessage, Icon } from '../components/ui';
 
@@ -10,11 +10,6 @@ const materialOptions = [
 
 export default function JobTailoringPage({ job, materials, loading, error, onBack, onGenerate }) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
-
-  useEffect(() => {
-    const firstReady = materialOptions.find((item) => materials[item.id]);
-    if (firstReady) setActivePanel(firstReady.id);
-  }, [materials]);
 
   const activeOption = useMemo(
     () => materialOptions.find((item) => item.id === activePanel) || materialOptions[0],

@@ -12,16 +12,26 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
   return (
     <section>
       <div className="hero">
-        <span className="eyebrow">Your next move, made clearer</span>
-        <h1>Find the role.<br /><em>Then tailor your case.</em></h1>
-        <p>Search live opportunities first. Pick a job, then generate materials specifically for it.</p>
+        <div className="hero-copy">
+          <div className="hero-kicker"><span className="live-dot" /> Your career, in focus</div>
+          <h1>Make your next<br /><em>move meaningful.</em></h1>
+          <p>Discover roles that fit where you’re headed, then create a sharper application for the opportunity you want.</p>
+          <div className="hero-proof"><span><Icon name="check" /> Role-aware search</span><span><Icon name="check" /> Tailored materials</span></div>
+        </div>
+        <aside className="hero-orbit" aria-hidden="true">
+          <div className="orbit-ring orbit-ring-one" /><div className="orbit-ring orbit-ring-two" />
+          <div className="orbit-core"><span>01</span><strong>Your<br />next role</strong></div>
+          <div className="orbit-card card-resume"><Icon name="document" /><span>Resume ready</span></div>
+          <div className="orbit-card card-match"><span className="match-icon"><Icon name="spark" /></span><span>Built around you</span></div>
+        </aside>
       </div>
       <section className="workflow-card">
         <div className="workflow-heading">
           <div>
-            <span className="section-kicker">Step 1 of 2</span>
-            <h2>Search for matching jobs</h2>
+            <span className="section-kicker">Start your search</span>
+            <h2>What role are you after?</h2>
           </div>
+          <span className="secure-note"><Icon name="document" /> Your resume stays private</span>
         </div>
         <form onSubmit={submit}>
           <div className="form-grid">
@@ -48,7 +58,7 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
                 <Icon name={resume ? 'document' : 'upload'} />
                 <span className="file-copy">
                   <strong>{resume?.name || 'Choose a PDF resume'}</strong>
-                  <small>{resume ? 'Ready for job-specific tailoring' : 'PDF, maximum 5 MB'}</small>
+                  <small>{resume ? 'Ready for tailored matches' : 'PDF, maximum 5 MB'}</small>
                 </span>
                 <span className="file-action">Browse</span>
               </label>
@@ -91,7 +101,7 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
           </div>
           {error && <ErrorMessage text={error} />}
           <div className="form-footer">
-            <p>Your resume is only analyzed when you request material for a selected job.</p>
+            <p>We use your resume only to personalize materials for a job you choose.</p>
             <button className="primary-button" disabled={loading === 'search'}>
               {loading === 'search' ? 'Searching jobs...' : <>Search jobs <Icon name="arrow" /></>}
             </button>

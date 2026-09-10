@@ -40,9 +40,21 @@ function App() {
     catch (requestError) { setError(requestError.response?.data?.detail || 'We could not generate this material right now.'); }
     finally { setLoading(''); }
   };
-  const returnHome = () => { setPage('search'); setJobs([]); setSelectedJob(null); setMaterials({}); setError(''); };
+  const goHome = () => { setPage('search'); setError(''); window.scrollTo(0, 0); };
+  const goToJobs = () => { if (jobs.length) { setPage('jobs'); setError(''); window.scrollTo(0, 0); } };
+  const goToStudio = () => { if (selectedJob) { setPage('job'); setError(''); window.scrollTo(0, 0); } };
 
-  return <main className="app-shell"><nav className="topbar"><button className="brand plain-button" onClick={returnHome}><span className="brand-mark"><Icon name="spark" /></span><span>career<span>atlas</span></span></button></nav>
+  return <main className="app-shell">
+    <div className="page-glow glow-one" /><div className="page-glow glow-two" />
+    <nav className="topbar" aria-label="Primary navigation">
+      <button className="brand plain-button" onClick={goHome} aria-label="Career Atlas home"><span className="brand-mark"><Icon name="spark" /></span><span>career<span>atlas</span></span></button>
+      <div className="nav-links">
+        <button className={`nav-link ${page === 'search' ? 'is-active' : ''}`} onClick={goHome}><Icon name="search" /> Discover</button>
+        <button className={`nav-link ${page === 'jobs' ? 'is-active' : ''}`} onClick={goToJobs} disabled={!jobs.length}><Icon name="grid" /> Matches</button>
+        <button className={`nav-link ${page === 'job' ? 'is-active' : ''}`} onClick={goToStudio} disabled={!selectedJob}><Icon name="wand" /> Studio</button>
+      </div>
+      <button className="nav-cta" onClick={goHome}><span className="nav-cta-label">New search</span><Icon name="arrow" /></button>
+    </nav>
     {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume, filters, setFilters, error, loading, onSearch: searchJobs }} />}
     {page === 'jobs' && <JobsPage jobs={jobs} role={role} error={error} onBack={() => setPage('search')} onSelectJob={selectJob} />}
     {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} loading={loading} error={error} onBack={() => setPage('jobs')} onGenerate={generateMaterial} />}
