@@ -1,6 +1,6 @@
 # AI Multi-Agent Job Search Assistant
 
-This repository contains a **FastAPI (backend)** + **React/Vite (frontend)** application for an AI-powered Job Search Assistant. It utilizes **LangGraph** to orchestrate a multi-agent workflow (Supervisor, Job Researcher, Skill Gap Advisor, Resume Tailor, and Cover Letter Writer) powered by the **Google Gemini API** and live web scraping via the **Tavily API**.
+This repository contains a **FastAPI (backend)** + **React/Vite (frontend)** application for an AI-powered Job Search Assistant. It utilizes **LangGraph** to orchestrate a multi-agent workflow (Supervisor, Job Researcher, Skill Gap Advisor, Resume Tailor, and Cover Letter Writer) powered by the **Google Gemini API** and live web scraping via the **JSearch API**.
 
 ## Prerequisites (Install/Gather these first)
 
@@ -11,7 +11,7 @@ This repository contains a **FastAPI (backend)** + **React/Vite (frontend)** app
 
 *Required API Keys:*
 - **Google Gemini API Key:** Get it free from [Google AI Studio](https://aistudio.google.com/)
-- **Tavily Search API Key:** Get it free from [Tavily](https://tavily.com/)
+- **JSearch API Key:** Get it free from [JSearch](https://rapidapi.com/)
 
 ---
 
@@ -68,7 +68,7 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-Open the newly created .env file in VS Code and update it with your actual GOOGLE_API_KEY and TAVILY_API_KEY.
+Open the newly created .env file in VS Code and update it with your actual GOOGLE_API_KEY and RAPIDAPI_KEY.
 
 ## 3) Start Backend Server
 
