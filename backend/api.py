@@ -3,7 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from pypdf import PdfReader
 import io
-from agents import job_researcher_node, skill_gap_node, resume_tailor_node, cover_letter_node
+from agents import (
+    job_researcher_node,
+    skill_gap_node,
+    resume_tailor_node,
+    cover_letter_node,
+    extract_candidate_profile,
+    rank_jobs_for_candidate,
+    _fallback_candidate_profile,
+)
 import os
 from mock_data import get_mock_analysis, get_mock_jobs
 
@@ -41,6 +49,12 @@ async def start_job_search(
     try:
         print(f"\nAPI Triggered: Searching jobs for '{target_role}'")
 
+        if "," in target_role or ";" in target_role:
+            raise HTTPException(
+                status_code=422,
+                detail="Search one target role at a time for more relevant matches.",
+            )
+
         # 1. VALIDATION: Check file type
         if resume_pdf.content_type != "application/pdf":
             raise HTTPException(status_code=400, detail="Invalid file type. Please upload a PDF.")
@@ -75,6 +89,18 @@ async def start_job_search(
 
         print(f"PDF text extracted successfully. ({len(extracted_text)} characters)")
 
+        if MOCK_MODE:
+            candidate_profile = _fallback_candidate_profile(target_role)
+            profile_mode = "fallback"
+        else:
+            try:
+                candidate_profile = extract_candidate_profile(extracted_text, target_role)
+                profile_mode = "ai"
+            except Exception as profile_error:
+                print(f"Candidate profile extraction unavailable: {profile_error}")
+                candidate_profile = _fallback_candidate_profile(target_role)
+                profile_mode = "fallback"
+
         # 6. Setup the clipboard for LangGraph
         initial_state = {
             "base_resume": extracted_text,
@@ -98,11 +124,19 @@ async def start_job_search(
         else:
             jobs = job_researcher_node(initial_state).get("job_descriptions", [])
 
+        ranked_jobs, ranking_mode = rank_jobs_for_candidate(
+            jobs=jobs,
+            profile=candidate_profile,
+            target_role=target_role,
+            use_ai_ranking=not MOCK_MODE and profile_mode == "ai",
+        )
+
         print("API workflow complete.")
 
         return {
             "status": "success",
-            "jobs_found": jobs,
+            "jobs_found": ranked_jobs,
+            "ranking_mode": ranking_mode,
         }
 
     except HTTPException as http_exc:

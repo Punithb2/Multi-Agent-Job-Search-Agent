@@ -36,7 +36,7 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
         <form onSubmit={submit}>
           <div className="form-grid">
             <label className="field-label">
-              <span>Target role</span>
+              <span>Target role <small className="field-hint">One role per search gives better matches</small></span>
               <input
                 value={role}
                 onChange={(event) => setRole(event.target.value)}
@@ -100,6 +100,18 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
             </label>
           </div>
           {error && <ErrorMessage text={error} />}
+          {loading === 'search' && (
+            <div className="search-progress" role="status" aria-live="polite">
+              <div className="search-progress-icon"><Icon name="search" /></div>
+              <div className="search-progress-copy">
+                <strong>Finding the right opportunities for you</strong>
+                <span>Reading your experience, checking live roles, and ranking the strongest matches.</span>
+              </div>
+              <div className="search-progress-steps" aria-hidden="true">
+                <i /><i /><i />
+              </div>
+            </div>
+          )}
           <div className="form-footer">
             <p>We use your resume only to personalize materials for a job you choose.</p>
             <button className="primary-button" disabled={loading === 'search'}>
