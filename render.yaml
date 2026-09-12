@@ -18,6 +18,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.7"
+      # Without this, Python buffers print() output when stdout is a pipe, so
+      # application logs never appear in the Render dashboard.
+      - key: PYTHONUNBUFFERED
+        value: "1"
       - key: GEMINI_API_KEY
         sync: false           # entered in the Render dashboard
       - key: RAPIDAPI_KEY
