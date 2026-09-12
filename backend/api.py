@@ -2,7 +2,9 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from pypdf import PdfReader
+import asyncio
 import io
+import time
 from agents import (
     job_researcher_node,
     skill_gap_node,
@@ -127,18 +129,6 @@ async def start_job_search(
 
         print(f"PDF text extracted successfully. ({len(extracted_text)} characters)")
 
-        if MOCK_MODE:
-            candidate_profile = _fallback_candidate_profile(target_role)
-            profile_mode = "fallback"
-        else:
-            try:
-                candidate_profile = extract_candidate_profile(extracted_text, target_role)
-                profile_mode = "ai"
-            except Exception as profile_error:
-                print(f"Candidate profile extraction unavailable: {profile_error}")
-                candidate_profile = _fallback_candidate_profile(target_role)
-                profile_mode = "fallback"
-
         # 6. Setup the clipboard for LangGraph
         initial_state = {
             "base_resume": extracted_text,
@@ -150,25 +140,47 @@ async def start_job_search(
             "date_posted": date_posted,
         }
 
-        # 7. Search only. Analysis is run later for the one job the user selects.
-        if MOCK_MODE:
-            print("MOCK MODE: Returning sample job listings")
-            jobs = get_mock_jobs(
-                target_role=target_role,
-                location=location,
-                remote_only=remote_only,
-                experience_level=experience_level,
-                date_posted=date_posted,
-            )
-        else:
-            jobs = job_researcher_node(initial_state).get("job_descriptions", [])
+        # 7. Reading the resume and searching for jobs do not depend on each
+        # other, so run them at the same time instead of one after the other.
+        # Both are blocking network calls, so each goes to a worker thread.
+        async def build_candidate_profile():
+            if MOCK_MODE:
+                return _fallback_candidate_profile(target_role), "fallback"
+            try:
+                profile = await asyncio.to_thread(extract_candidate_profile, extracted_text, target_role)
+                return profile, "ai"
+            except Exception as profile_error:
+                print(f"Candidate profile extraction unavailable: {profile_error}")
+                return _fallback_candidate_profile(target_role), "fallback"
 
-        ranked_jobs, ranking_mode = rank_jobs_for_candidate(
-            jobs=jobs,
-            profile=candidate_profile,
-            target_role=target_role,
-            use_ai_ranking=not MOCK_MODE and profile_mode == "ai",
+        async def find_jobs():
+            if MOCK_MODE:
+                print("MOCK MODE: Returning sample job listings")
+                return get_mock_jobs(
+                    target_role=target_role,
+                    location=location,
+                    remote_only=remote_only,
+                    experience_level=experience_level,
+                    date_posted=date_posted,
+                )
+            result = await asyncio.to_thread(job_researcher_node, initial_state)
+            return result.get("job_descriptions", [])
+
+        stage_started = time.perf_counter()
+        (candidate_profile, profile_mode), jobs = await asyncio.gather(
+            build_candidate_profile(), find_jobs()
         )
+        print(f"[timing] profile + job search (parallel): {time.perf_counter() - stage_started:.1f}s")
+
+        ranking_started = time.perf_counter()
+        ranked_jobs, ranking_mode = await asyncio.to_thread(
+            rank_jobs_for_candidate,
+            jobs,
+            candidate_profile,
+            target_role,
+            not MOCK_MODE and profile_mode == "ai",
+        )
+        print(f"[timing] ranking ({ranking_mode}): {time.perf_counter() - ranking_started:.1f}s")
 
         print("API workflow complete.")
 

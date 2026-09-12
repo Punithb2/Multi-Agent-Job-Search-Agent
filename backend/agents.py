@@ -207,7 +207,9 @@ def rank_jobs_for_candidate(
     suitable = [job for job in deduplicated if not _is_seniority_mismatch(job, profile.get("experience_level", "unknown"))]
     candidates = suitable or deduplicated
     candidates.sort(key=lambda item: item["match_score"], reverse=True)
-    candidates = candidates[:15]
+    # Only the top 10 are ever shown, so ranking more than that costs latency
+    # for results nobody sees. A couple of spares absorb any dropped entries.
+    candidates = candidates[:12]
 
     if not candidates or not use_ai_ranking:
         return candidates[:10], "fallback"
@@ -219,7 +221,9 @@ def rank_jobs_for_candidate(
             "company": job.get("company"),
             "location": job.get("location"),
             "employment_type": job.get("employment_type"),
-            "description": str(job.get("description", ""))[:900],
+            # Requirements sit near the top of a listing, so the opening lines
+            # carry almost all the signal. A shorter prompt is a faster response.
+            "description": str(job.get("description", ""))[:400],
         }
         for job in candidates
     ]

@@ -5,9 +5,12 @@ export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 /**
  * Free hosting tiers stop the backend after a period of inactivity, and the
  * next request has to wait for it to start again. A search also waits on
- * JSearch (up to 45s server-side) and Gemini, so the ceiling is generous.
+ * JSearch and Gemini, and a throttled free instance is several times slower
+ * than a laptop. Measured at 95-117s before the work was parallelised, so the
+ * ceiling stays well clear of that rather than aborting a request the server
+ * is about to answer.
  */
-export const REQUEST_TIMEOUT_MS = 90_000;
+export const REQUEST_TIMEOUT_MS = 150_000;
 
 export const api = axios.create({
   baseURL: API_URL,
