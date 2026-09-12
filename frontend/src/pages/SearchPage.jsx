@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { ErrorMessage, Icon } from '../components/ui';
 
-export default function SearchPage({ role, setRole, resume, setResume, filters, setFilters, error, loading, onSearch }) {
+export default function SearchPage({ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch }) {
   const fileInput = useRef(null);
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const submit = (event) => {
@@ -112,12 +112,25 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
             </label>
           </div>
           {error && <ErrorMessage text={error} />}
+          {backendAsleep && loading !== 'search' && (
+            <div className="wake-notice" role="status">
+              <Icon name="clock" />
+              <span>
+                <strong>The free server is waking up.</strong> CareerAtlas runs on free hosting that sleeps when idle,
+                so your first search can take up to a minute. Later searches are quick.
+              </span>
+            </div>
+          )}
           {loading === 'search' && (
             <div className="search-progress" role="status" aria-live="polite">
               <div className="search-progress-icon"><Icon name="search" /></div>
               <div className="search-progress-copy">
                 <strong>Finding the right opportunities for you</strong>
-                <span>Reading your experience, checking live roles, and ranking the strongest matches.</span>
+                <span>
+                  {backendAsleep
+                    ? 'Starting the free server, then checking live roles. This first search can take up to a minute.'
+                    : 'Reading your experience, checking live roles, and ranking the strongest matches.'}
+                </span>
               </div>
               <div className="search-progress-steps" aria-hidden="true">
                 <i /><i /><i />

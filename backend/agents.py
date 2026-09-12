@@ -12,6 +12,16 @@ from state import AgentState
 
 load_dotenv()
 
+# Google AI Studio calls this key GEMINI_API_KEY, while langchain reads
+# GOOGLE_API_KEY. Accept either name and normalise, so a deployment cannot
+# silently fall back to non-AI ranking just because the variable was named
+# the other way round.
+_gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+if _gemini_key:
+    os.environ["GOOGLE_API_KEY"] = _gemini_key
+else:
+    print("⚠️  No GEMINI_API_KEY / GOOGLE_API_KEY set. AI ranking and tailoring will fail.")
+
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     temperature=0.0

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
 import SearchPage from './pages/SearchPage';
 import JobsPage from './pages/JobsPage';
 import JobTailoringPage from './pages/JobTailoringPage';
@@ -12,9 +11,8 @@ import { Icon } from './components/ui';
 import { useAuth } from './lib/authContext';
 import { fetchSearchHistory, recordSearch } from './lib/searchHistory';
 import { fetchSavedJobs, jobKey, removeSavedJob, saveJob } from './lib/savedJobs';
+import { api, describeRequestError, wakeBackend } from './lib/api';
 import './App.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function App() {
   const { user, loadingSession, accountsEnabled, signOut } = useAuth();
@@ -40,6 +38,20 @@ function App() {
   const [snapshot, setSnapshot] = useState(null);
   // Where the tailoring studio should go back to: live matches or saved jobs.
   const [studioOrigin, setStudioOrigin] = useState('jobs');
+  // True when the backend did not answer its health check quickly, so the first
+  // search will have to wait for a free-tier instance to start up.
+  const [backendAsleep, setBackendAsleep] = useState(false);
+
+  // Nudge the backend awake on load, while the user is still filling the form.
+  useEffect(() => {
+    let active = true;
+    const wake = async () => {
+      const awake = await wakeBackend();
+      if (active && !awake) setBackendAsleep(true);
+    };
+    wake();
+    return () => { active = false; };
+  }, []);
 
   const goTo = (next) => { setPage(next); setError(''); window.scrollTo(0, 0); };
 
@@ -83,9 +95,9 @@ function App() {
     formData.append('experience_level', filters.experience); formData.append('date_posted', filters.date);
     setError(''); setLoading('search');
     try {
-      const response = await axios.post(`${API_URL}/api/search/start`, formData);
+      const response = await api.post('/api/search/start', formData);
       const ranked = response.data.jobs_found || [];
-      setJobs(ranked); setSnapshot(null); setPage('jobs');
+      setJobs(ranked); setSnapshot(null); setPage('jobs'); setBackendAsleep(false);
       // Saving history is a convenience, never a reason to fail a search.
       if (user) {
         recordSearch({
@@ -99,7 +111,7 @@ function App() {
           .catch((saveError) => console.warn('Could not save this search to your history:', saveError.message));
       }
     }
-    catch (requestError) { setError(requestError.response?.data?.detail || 'We could not search jobs right now.'); }
+    catch (requestError) { setError(describeRequestError(requestError, 'We could not search jobs right now.')); }
     finally { setLoading(''); }
   };
 
@@ -110,8 +122,8 @@ function App() {
     const formData = new FormData(); formData.append('action', action);
     formData.append('selected_job_json', JSON.stringify(selectedJob)); formData.append('resume_pdf', resume);
     setError(''); setLoading(action);
-    try { const response = await axios.post(`${API_URL}/api/jobs/analyze`, formData); setMaterials((current) => ({ ...current, [action]: response.data.content })); }
-    catch (requestError) { setError(requestError.response?.data?.detail || 'We could not generate this material right now.'); }
+    try { const response = await api.post('/api/jobs/analyze', formData); setMaterials((current) => ({ ...current, [action]: response.data.content })); }
+    catch (requestError) { setError(describeRequestError(requestError, 'We could not generate this material right now.')); }
     finally { setLoading(''); }
   };
 
@@ -251,7 +263,7 @@ function App() {
       )}
     </nav>
 
-    {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume, filters, setFilters, error, loading, onSearch: searchJobs }} />}
+    {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch: searchJobs }} />}
     {page === 'jobs' && (
       <JobsPage
         jobs={jobs}

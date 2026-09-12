@@ -1,9 +1,15 @@
-fastapi
-uvicorn
-python-multipart
-pypdf
-langgraph
-langchain-google-genai
-requests
-pydantic
-python-dotenv
+# Pinned so a redeploy months from now installs exactly what works today.
+# To upgrade deliberately: bump a version here, reinstall locally, test, commit.
+fastapi==0.120.4
+uvicorn==0.38.0
+python-multipart==0.0.20
+pypdf==6.14.2
+langgraph==1.2.6
+langchain-google-genai==4.2.6
+requests==2.32.5
+pydantic==2.13.4
+python-dotenv==1.2.1
+
+# Pulled in by langchain-google-genai. Pinned because the app imports
+# google.api_core.exceptions.ResourceExhausted directly.
+google-api-core==2.25.2

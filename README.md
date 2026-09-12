@@ -1,133 +1,280 @@
-# AI Multi-Agent Job Search Assistant
+# CareerAtlas
 
-This repository contains a **FastAPI (backend)** + **React/Vite (frontend)** application for an AI-powered Job Search Assistant. It utilizes **LangGraph** to orchestrate a multi-agent workflow (Supervisor, Job Researcher, Skill Gap Advisor, Resume Tailor, and Cover Letter Writer) powered by the **Google Gemini API** and live web scraping via the **JSearch API**.
+**Resume-aware job search with AI-tailored application materials.**
 
-## Prerequisites (Install/Gather these first)
+Upload a PDF resume, pick a target role, and CareerAtlas finds live job listings,
+ranks them against what your resume actually shows, and generates a skill-gap
+analysis, a tailored resume, and a cover letter for whichever job you choose.
 
-- **Git**
-- **VS Code** (or your preferred IDE)
-- **Python 3.10+** (recommended)
-- **Node.js 18+** (recommended) and npm
+> **Live demo:** _add your Vercel URL here after deploying_
 
-*Required API Keys:*
-- **Google Gemini API Key:** Get it free from [Google AI Studio](https://aistudio.google.com/)
-- **JSearch API Key:** Get it free from [JSearch](https://rapidapi.com/)
+![CareerAtlas search screen](docs/screenshots/search.png)
+<!-- Screenshots to add:
+     docs/screenshots/search.png     - the Discover / search screen
+     docs/screenshots/matches.png    - ranked job cards with match scores
+     docs/screenshots/studio.png     - the tailoring workspace
+     docs/screenshots/saved.png      - saved jobs page
+-->
 
 ---
 
-## 1) Clone and open in VS Code
+## Features
+
+**Resume-aware ranking.** There is no hard-coded skill list. Gemini reads the
+resume and extracts a candidate profile — real job titles, skills, industries,
+seniority — and every listing is scored against it. Each job card shows a match
+score, matched skills, missing skills, and a short explanation. If Gemini is
+unavailable or rate-limited, a deterministic fallback ranking takes over so the
+app never dead-ends.
+
+**Live job search.** One target role at a time, filtered by country, city,
+experience level, remote preference, and how recently the job was posted.
+
+**AI tailoring studio.** For a selected job, generate a skill-gap analysis, a
+tailored resume, or a cover letter — each independently, so you only spend API
+calls on what you want.
+
+**Accounts, saved jobs, and history.** Sign up to bookmark roles and keep a
+snapshot of every search you run, reopenable later without spending another
+search credit. The app stays fully usable as a guest: search, ranking, and
+tailoring all work without an account.
+
+**Your resume is never stored.** The PDF is parsed in memory and discarded. No
+resume file or extracted text is written to the database.
+
+## Tech stack
+
+| Layer | Choice |
+| --- | --- |
+| Frontend | React 19 + Vite, plain CSS with design tokens |
+| Backend | FastAPI, LangGraph agent workflow |
+| AI | Google Gemini 2.5 Flash (JSON mode) |
+| Jobs data | JSearch (RapidAPI) |
+| Auth + database | Supabase (Postgres with Row Level Security) |
+| Hosting | Vercel (frontend), Render (backend), Supabase (data) |
+
+## Architecture
+
+```
+Browser (React)
+   |
+   |-- Supabase  ......  auth, saved jobs, search history (RLS: users see only their own rows)
+   |
+   +-- FastAPI backend
+          |-- pypdf ..........  extract resume text (in memory, never stored)
+          |-- JSearch ........  fetch live listings
+          +-- Gemini .........  candidate profile, ranking, tailored materials
+```
+
+The backend holds the paid API keys. The browser never sees them.
+
+---
+
+## Local setup
+
+### Prerequisites
+
+- Git
+- Python 3.12 (3.10+ works; 3.12 matches the deployed version)
+- Node.js 20+ and npm
+- A free [Google AI Studio](https://aistudio.google.com/) key (Gemini)
+- A free [JSearch on RapidAPI](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch) key
+- A free [Supabase](https://supabase.com) project (only needed for accounts)
+
+### 1. Clone
 
 ```bash
-git clone <your-github-repo-url>
+git clone <your-repo-url>
 cd Multi-Agent-Job-Search
-code .
 ```
-(Note: Replace <your-github-repo-url> with your actual repository link once uploaded).
 
-## 2) Backend (FastAPI) Setup — Terminal 1
+### 2. Backend
 
-Open Terminal 1 in VS Code.
-
-### 2.1 Go to the backend directory
 ```bash
 cd backend
-```
-
-### 2.2 Create and activate the virtual environment
-
-**Windows (PowerShell / CMD):**
-```bash
 python -m venv venv
+
+# Windows
 venv\Scripts\activate
-```
-
-**macOS / Linux:**
-```bash
-python3 -m venv venv
+# macOS / Linux
 source venv/bin/activate
-```
 
-### 2.3 Install dependencies
-```bash
 pip install -r requirements.txt
-```
-
-### 2.4 Configure Environment Variables (IMPORTANT)
-
-This project uses environment variables to keep your API keys secure. You must create a local .env file before running the server.
-
-Copy the provided template file:
-
-**Windows:**
-```bash
-copy .env.example .env
-```
-
-**macOS / Linux:**
-```bash
-cp .env.example .env
-```
-
-Open the newly created .env file in VS Code and update it with your actual GOOGLE_API_KEY and RAPIDAPI_KEY.
-
-## 3) Start Backend Server
-
-With the virtual environment activated in backend, start the FastAPI server:
-
-```bash
+cp .env.example .env      # then open .env and paste your keys
 python api.py
 ```
 
-The backend API should now be running. You can view the interactive API documentation at: http://localhost:8000/docs
+Backend runs at http://localhost:8000. Check http://localhost:8000/health.
 
-## 4) Frontend (React) Setup — Terminal 2
+### 3. Frontend
 
-Open Terminal 2 in VS Code.
+In a second terminal:
 
-### 4.1 Go to the frontend directory
 ```bash
 cd frontend
-```
-
-### 4.2 Install dependencies
-```bash
 npm install
-```
-
-### 4.3 Start the frontend dev server
-```bash
+cp .env.example .env      # then open .env and paste your Supabase values
 npm run dev
 ```
 
-Open the URL printed in the terminal (commonly):
+Frontend runs at http://localhost:5173.
 
-http://localhost:5173/
+### 4. Supabase
 
-## 5) Common Fixes / Troubleshooting
+Follow [`supabase/SETUP.md`](supabase/SETUP.md): create the project, run
+[`supabase/schema.sql`](supabase/schema.sql) in the SQL editor, enable
+email/password auth, and copy the two values into `frontend/.env`.
 
-### A) "429 RESOURCE_EXHAUSTED" Error (Gemini API)
+Leave the Supabase variables blank and the app still runs — just without
+accounts, saved jobs, or history.
 
-If the backend crashes with a 429 error, you have hit the free-tier rate limit for the Gemini API (usually 15 requests per minute).
+### Developing without spending API credits
 
-**Fix:** Wait 60 seconds and click the "Analyze & Tailor" button in the frontend again.
+Set `MOCK_MODE=true` in `backend/.env` to get sample listings and sample
+analyses without calling JSearch or Gemini. Useful for UI work.
 
-### B) CORS issues (Frontend cannot call backend)
+---
 
-If your React app is stuck loading or shows a Network Error:
+## Environment variables
 
-- Ensure the FastAPI server is actively running in Terminal 1.
-- Check backend/api.py to ensure http://localhost:5173 is listed in the CORSMiddleware allowed origins.
+### `backend/.env` — secret, server-side only
 
-### C) File Upload Errors
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | yes | Google Gemini key. `GOOGLE_API_KEY` also works. |
+| `RAPIDAPI_KEY` | yes | JSearch key for live listings. |
+| `FRONTEND_ORIGINS` | production | Comma-separated frontend URLs allowed by CORS. Leave blank locally. |
+| `MOCK_MODE` | no | `true` returns sample data without calling any API. |
+| `PORT` | no | Port to listen on. Hosts set this automatically. |
 
-If the PDF text isn't extracting properly:
+### `frontend/.env` — bundled into the browser, **public**
 
-- Ensure you are uploading a standard, text-based PDF (not an image-only scanned document).
-- Verify that pypdf is installed in your backend virtual environment.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `VITE_API_URL` | yes | Backend base URL. `http://localhost:8000` locally. |
+| `VITE_SUPABASE_URL` | for accounts | Supabase project URL (origin only, no path). |
+| `VITE_SUPABASE_ANON_KEY` | for accounts | Supabase **anon/public** key. |
 
-### D) Running the app in a new terminal later
+> **Anything prefixed `VITE_` is compiled into the JavaScript bundle and is
+> readable by anyone.** That is fine for the Supabase anon key, which is designed
+> to be public and is protected by Row Level Security. **Never** put the Gemini
+> or RapidAPI key in a `VITE_` variable — those belong in `backend/.env` only.
 
-Every time you restart your machine or reopen VS Code, you must reactivate both servers:
+---
 
-- **Backend Server:** cd backend -> Activate venv -> python api.py
-- **Frontend Server:** cd frontend -> npm run dev
+## Deployment
+
+Three pieces, three hosts, all free:
+
+| Piece | Host | What it is |
+| --- | --- | --- |
+| Frontend | Vercel | Static files on a CDN |
+| Backend | Render | A Python process that stays running |
+| Auth + data | Supabase | Already hosted; nothing to deploy |
+
+**Deploy the backend first.** Then you can test it on its own before adding the
+frontend, instead of debugging two unknowns at once.
+
+### 1. Backend on Render
+
+1. Push the repo to GitHub.
+2. Render dashboard → **New → Web Service** → connect the repo.
+3. Settings:
+   - **Root Directory:** `backend`
+   - **Runtime:** Python
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn api:app --host 0.0.0.0 --port $PORT`
+   - **Health Check Path:** `/health`
+   - **Instance Type:** Free
+4. Environment variables:
+   - `PYTHON_VERSION` = `3.12.7`
+   - `GEMINI_API_KEY` = your key
+   - `RAPIDAPI_KEY` = your key
+   - `MOCK_MODE` = `false`
+   - (`FRONTEND_ORIGINS` comes in step 3, once the frontend URL exists)
+5. Deploy, then open `https://<your-service>.onrender.com/health`. You should see
+   `{"status":"ok","jsearch_configured":true,"gemini_configured":true}`. If either
+   says `false`, the key name or value is wrong.
+
+[`render.yaml`](render.yaml) captures these settings if you prefer Render Blueprints.
+
+### 2. Frontend on Vercel
+
+1. Vercel dashboard → **Add New → Project** → import the repo.
+2. Settings:
+   - **Root Directory:** `frontend`  ← the repo root holds both apps, so this matters
+   - Framework preset: Vite (auto-detected)
+3. Environment variables:
+   - `VITE_API_URL` = your Render URL, e.g. `https://careeratlas-api.onrender.com`
+   - `VITE_SUPABASE_URL` = your Supabase project URL
+   - `VITE_SUPABASE_ANON_KEY` = your Supabase anon key
+4. Deploy.
+
+> Changing a `VITE_` variable requires a **redeploy**, not a restart — these
+> values are baked in at build time.
+
+### 3. Connect them (the step everyone forgets)
+
+Back in Render, set:
+
+```
+FRONTEND_ORIGINS=https://your-app.vercel.app
+```
+
+No trailing slash. Render redeploys, and the browser is then allowed to call the
+API. Without this, the site loads but every search fails with a CORS error.
+
+Vercel preview deployments (`*.vercel.app`) are allowed automatically.
+
+### 4. Supabase
+
+In the Supabase dashboard → **Authentication → URL Configuration**, add your
+Vercel URL as the Site URL.
+
+---
+
+## Free-tier limitations
+
+Worth knowing before you share the link:
+
+- **Render free instances sleep after ~15 minutes of inactivity.** The next
+  request has to start the server, which takes up to a minute. CareerAtlas pings
+  `/health` on page load to start waking it early, and shows a notice explaining
+  the wait rather than appearing to hang. To avoid it entirely, point a free
+  uptime monitor at `/health` every 10 minutes, or upgrade the instance.
+- **Supabase free projects pause after ~7 days of inactivity.** Open the
+  dashboard to resume one before a demo.
+- **JSearch free tier has a monthly request quota.** CareerAtlas requests a
+  single page per search to conserve it, and reopening a past search reads the
+  stored snapshot instead of searching again.
+- **Gemini free tier is rate-limited.** Ranking retries with backoff and falls
+  back to deterministic scoring if the limit is hit.
+
+## Project structure
+
+```
+backend/
+  api.py            FastAPI app, endpoints, CORS, health check
+  agents.py         LangGraph nodes: research, ranking, tailoring
+  graph.py          workflow wiring
+  state.py          shared agent state
+  mock_data.py      sample data for MOCK_MODE
+frontend/
+  src/
+    pages/          Search, Jobs, Tailoring, Auth, SavedJobs, History
+    components/     Icon set, AccountMenu, SignInPrompt, shared UI
+    lib/            Supabase client, auth, API client, saved jobs, history
+supabase/
+  schema.sql        tables, indexes, RLS policies, signup trigger
+  SETUP.md          step-by-step Supabase setup
+render.yaml         backend deployment settings
+```
+
+## Security notes
+
+- Row Level Security is enabled on every table; policies restrict each user to
+  their own rows. Verified: anonymous reads return nothing, and an insert
+  spoofing another user's id is rejected.
+- Paid API keys live only in `backend/.env` and the Render dashboard.
+- `.env` files are gitignored and no secret has ever been committed.
+- Resume PDFs and extracted text are never persisted.

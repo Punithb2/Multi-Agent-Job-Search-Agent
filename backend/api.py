@@ -19,10 +19,25 @@ from mock_data import get_mock_analysis, get_mock_jobs
 # 1. Initialize the API
 app = FastAPI(title="Job Search AI Backend")
 
-# 2. Configure CORS so React can talk to this API
+# 2. Configure CORS so the React app can talk to this API.
+#
+# Local development always works. Production origins come from the
+# FRONTEND_ORIGINS environment variable, set on the host (Render) to the
+# deployed Vercel URL. Use a comma-separated list for more than one, e.g.
+#   FRONTEND_ORIGINS=https://career-atlas.vercel.app,https://careeratlas.dev
+DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+configured_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("FRONTEND_ORIGINS", "").split(",")
+    if origin.strip()
+]
+ALLOWED_ORIGINS = DEFAULT_ORIGINS + configured_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # The default port for Vite/React
+    allow_origins=ALLOWED_ORIGINS,
+    # Vercel gives every deployment a unique preview URL, so allow those too.
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,11 +46,28 @@ app.add_middleware(
 # --- mock mode flag ---
 MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
 
+print(f"CORS allowed origins: {ALLOWED_ORIGINS} (+ *.vercel.app previews)")
+
 
 # 3. Define Endpoints
 @app.get("/")
 def read_root():
     return {"message": "Job Search AI API is running!"}
+
+
+@app.get("/health")
+def health_check():
+    """Cheap liveness probe.
+
+    Used by the host's health check, by uptime monitors, and by the frontend on
+    load to wake a free-tier instance that has spun down.
+    """
+    return {
+        "status": "ok",
+        "mock_mode": MOCK_MODE,
+        "jsearch_configured": bool(os.getenv("RAPIDAPI_KEY")),
+        "gemini_configured": bool(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")),
+    }
 
 
 @app.post("/api/search/start")
@@ -199,4 +231,10 @@ async def analyze_selected_job(
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=8000)
+    # Hosts such as Render inject the port to listen on, and require binding to
+    # 0.0.0.0 rather than localhost so traffic from outside the container arrives.
+    uvicorn.run(
+        app,
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8000")),
+    )

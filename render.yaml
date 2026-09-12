@@ -1,0 +1,28 @@
+# Render Blueprint for the CareerAtlas backend.
+#
+# You can either import this file (Render dashboard -> Blueprints -> New
+# Blueprint Instance) or create the service by hand with the same settings.
+# Either way, the secret values below are marked sync:false, so Render will
+# ask you for them instead of reading them from this file. Never put real
+# keys in here — this file is committed.
+services:
+  - type: web
+    name: careeratlas-api
+    runtime: python
+    plan: free
+    region: singapore          # pick the region closest to you
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: GEMINI_API_KEY
+        sync: false           # entered in the Render dashboard
+      - key: RAPIDAPI_KEY
+        sync: false           # entered in the Render dashboard
+      - key: FRONTEND_ORIGINS
+        sync: false           # set to your Vercel URL once the frontend is live
+      - key: MOCK_MODE
+        value: "false"
