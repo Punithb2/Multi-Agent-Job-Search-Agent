@@ -33,15 +33,39 @@ JSEARCH_TIMEOUT = (10, 45)  # connect timeout, then up to 45 seconds for the pro
 JSON_GENERATION_CONFIG = {"response_mime_type": "application/json"}
 
 
-def invoke_with_retry(chain, prompt, max_retries=3, base_delay=15, **invoke_kwargs):
+def _is_quota_error(error):
+    """True for Gemini 429 / RESOURCE_EXHAUSTED, however the SDK wrapped it."""
+    if isinstance(error, ResourceExhausted):
+        return True
+    text = str(error).lower()
+    return "resource_exhausted" in text or "429" in text
+
+
+def _is_daily_quota_error(error):
+    """True when the exhausted quota is a per-day one.
+
+    Per-minute limits clear in seconds and are worth waiting for. A daily quota
+    will not recover during this request, so retrying only makes the user wait
+    45 seconds for a failure we already know is coming.
+    """
+    text = str(error).lower().replace(" ", "").replace("_", "")
+    return "perday" in text or "requestsperday" in text
+
+
+def invoke_with_retry(chain, prompt, max_retries=2, base_delay=8, **invoke_kwargs):
     for attempt in range(max_retries):
         try:
             return chain.invoke(prompt, **invoke_kwargs)
-        except ResourceExhausted:
+        except Exception as error:
+            if not _is_quota_error(error):
+                raise
+            if _is_daily_quota_error(error):
+                print("Gemini daily free-tier quota is exhausted. Falling back immediately.")
+                raise
             if attempt == max_retries - 1:
                 raise
             wait = base_delay * (attempt + 1)
-            print(f"⏳ Rate limited, retrying in {wait}s...")
+            print(f"Rate limited, retrying in {wait}s...")
             time.sleep(wait)
 
 
