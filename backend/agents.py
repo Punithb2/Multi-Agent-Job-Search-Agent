@@ -22,10 +22,17 @@ if _gemini_key:
 else:
     print("⚠️  No GEMINI_API_KEY / GOOGLE_API_KEY set. AI ranking and tailoring will fail.")
 
+# Flash Lite models get a far larger free-tier allowance than the full Flash
+# models (500 requests/day and 15/minute, against 20/day and 5/minute), which is
+# what keeps this app usable on a free key. Override with GEMINI_MODEL to try a
+# different one without touching code.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model=GEMINI_MODEL,
     temperature=0.0
 )
+print(f"Gemini model: {GEMINI_MODEL}")
 
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 JSEARCH_HOST = "jsearch.p.rapidapi.com"
@@ -93,11 +100,31 @@ COUNTRY_NAMES = {
 }
 
 
+def _response_text(content: Any) -> str:
+    """Flatten an LLM response body to plain text.
+
+    Depending on the model, langchain returns either a plain string or a list of
+    content blocks like [{"type": "text", "text": "..."}]. Calling str() on that
+    list yields a Python repr with single quotes, which is not valid JSON, so the
+    text parts are joined explicitly instead.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and isinstance(block.get("text"), str):
+                parts.append(block["text"])
+        if parts:
+            return "".join(parts)
+    return str(content)
+
+
 def _response_json(response: Any) -> dict[str, Any]:
     """Extract a JSON object from an LLM response, including fenced responses."""
-    content = getattr(response, "content", response)
-    if not isinstance(content, str):
-        content = str(content)
+    content = _response_text(getattr(response, "content", response))
     cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip(), flags=re.IGNORECASE)
     start, end = cleaned.find("{"), cleaned.rfind("}")
     if start == -1 or end == -1 or end <= start:
@@ -280,12 +307,18 @@ Jobs:
             raise ValueError("ranked_jobs was not a list")
         by_id = {str(job.get("job_id")): job for job in candidates}
         ordered = []
+        # Track which listings the model actually ranked. Comparing dicts does
+        # not work here: each entry appended below is a modified copy, so it
+        # never equals the original and every job would be appended twice.
+        ranked_ids = set()
         for item in ranked:
             if not isinstance(item, dict):
                 continue
-            job = by_id.get(str(item.get("job_id")))
-            if not job or job in ordered:
+            job_id = str(item.get("job_id"))
+            job = by_id.get(job_id)
+            if not job or job_id in ranked_ids:
                 continue
+            ranked_ids.add(job_id)
             score = item.get("match_score", job["match_score"])
             try:
                 score = max(0, min(100, int(score)))
@@ -298,7 +331,7 @@ Jobs:
                 "missing_skills": _text_list(item.get("missing_skills"))[:5],
                 "match_reason": str(item.get("match_reason", job["match_reason"])).strip() or job["match_reason"],
             })
-        remaining = [job for job in candidates if job not in ordered]
+        remaining = [job for job in candidates if str(job.get("job_id")) not in ranked_ids]
         return (ordered + remaining)[:10], "ai"
     except Exception as error:
         print(f"AI job ranking unavailable; using fallback ranking: {error}")
@@ -392,7 +425,7 @@ def skill_gap_node(state: AgentState):
     Output a structured gap analysis and project recommendations.
     """
     response = invoke_with_retry(llm, prompt)
-    return {"skill_analysis": response.content}
+    return {"skill_analysis": _response_text(response.content)}
 
 
 def resume_tailor_node(state: AgentState):
@@ -411,7 +444,7 @@ def resume_tailor_node(state: AgentState):
     Gap Analysis: {state.get('skill_analysis', '')}
     """
     response = invoke_with_retry(llm, prompt)
-    return {"tailored_resume": response.content}
+    return {"tailored_resume": _response_text(response.content)}
 
 
 def cover_letter_node(state: AgentState):
@@ -428,4 +461,4 @@ def cover_letter_node(state: AgentState):
     Target Job: {target_job}
     """
     response = invoke_with_retry(llm, prompt)
-    return {"cover_letter": response.content}
+    return {"cover_letter": _response_text(response.content)}

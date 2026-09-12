@@ -48,7 +48,7 @@ resume file or extracted text is written to the database.
 | --- | --- |
 | Frontend | React 19 + Vite, plain CSS with design tokens |
 | Backend | FastAPI, LangGraph agent workflow |
-| AI | Google Gemini 2.5 Flash (JSON mode) |
+| AI | Google Gemini 3.5 Flash Lite (JSON mode) |
 | Jobs data | JSearch (RapidAPI) |
 | Auth + database | Supabase (Postgres with Row Level Security) |
 | Hosting | Vercel (frontend), Render (backend), Supabase (data) |
@@ -247,8 +247,12 @@ Worth knowing before you share the link:
 - **JSearch free tier has a monthly request quota.** CareerAtlas requests a
   single page per search to conserve it, and reopening a past search reads the
   stored snapshot instead of searching again.
-- **Gemini free tier is rate-limited.** Ranking retries with backoff and falls
-  back to deterministic scoring if the limit is hit.
+- **Gemini free tier is rate-limited.** The app defaults to
+  `gemini-3.5-flash-lite`, which allows 500 requests/day and 15/minute on the
+  free tier, against 20/day for the full Flash models. Each search uses two
+  requests, so roughly 250 searches a day. Override the model with the
+  `GEMINI_MODEL` environment variable. If the quota is hit anyway, ranking falls
+  back to deterministic scoring immediately rather than retrying.
 
 ## Project structure
 
