@@ -13,6 +13,7 @@ from agents import (
     _fallback_candidate_profile,
 )
 import os
+import re
 from mock_data import get_mock_analysis, get_mock_jobs
 
 # 1. Initialize the API
@@ -41,6 +42,7 @@ def read_root():
 async def start_job_search(
     target_role: str = Form(..., min_length=2, max_length=100),
     resume_pdf: UploadFile = File(...),
+    country: str = Form("in", min_length=2, max_length=2),
     location: str = Form(""),
     remote_only: bool = Form(False),
     experience_level: str = Form("any"),
@@ -54,6 +56,10 @@ async def start_job_search(
                 status_code=422,
                 detail="Search one target role at a time for more relevant matches.",
             )
+
+        country = country.strip().lower()
+        if not re.fullmatch(r"[a-z]{2}", country):
+            raise HTTPException(status_code=422, detail="Choose a valid two-letter country code.")
 
         # 1. VALIDATION: Check file type
         if resume_pdf.content_type != "application/pdf":
@@ -105,6 +111,7 @@ async def start_job_search(
         initial_state = {
             "base_resume": extracted_text,
             "target_role": target_role,
+            "country": country,
             "location": location,
             "remote_only": remote_only,
             "experience_level": experience_level,

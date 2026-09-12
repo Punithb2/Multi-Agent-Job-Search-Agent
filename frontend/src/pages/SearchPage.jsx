@@ -66,16 +66,27 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
           </div>
           <div className="filters-grid">
             <label className="field-label">
-              <span>Location</span>
+              <span>Country</span>
+              <select value={filters.country} onChange={(event) => updateFilter('country', event.target.value)} disabled={loading === 'search'}>
+                <option value="in">India</option>
+                <option value="us">United States</option>
+                <option value="gb">United Kingdom</option>
+                <option value="ca">Canada</option>
+                <option value="au">Australia</option>
+              </select>
+            </label>
+            <label className="field-label">
+              <span>City or region <small className="field-hint">Optional, but improves local matches</small></span>
               <input
                 value={filters.location}
                 onChange={(event) => updateFilter('location', event.target.value)}
-                placeholder="Optional"
+                placeholder="e.g. Bengaluru"
+                disabled={loading === 'search'}
               />
             </label>
             <label className="field-label">
               <span>Experience</span>
-              <select value={filters.experience} onChange={(event) => updateFilter('experience', event.target.value)}>
+              <select value={filters.experience} onChange={(event) => updateFilter('experience', event.target.value)} disabled={loading === 'search'}>
                 <option value="any">Any experience</option>
                 <option value="entry">Entry-level</option>
                 <option value="experienced">Experienced</option>
@@ -83,7 +94,7 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
             </label>
             <label className="field-label">
               <span>Posted within</span>
-              <select value={filters.date} onChange={(event) => updateFilter('date', event.target.value)}>
+              <select value={filters.date} onChange={(event) => updateFilter('date', event.target.value)} disabled={loading === 'search'}>
                 <option value="all">Any time</option>
                 <option value="today">Past 24 hours</option>
                 <option value="week">Past week</option>
@@ -95,6 +106,7 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
                 type="checkbox"
                 checked={filters.remote}
                 onChange={(event) => updateFilter('remote', event.target.checked)}
+                disabled={loading === 'search'}
               />
               Remote only
             </label>

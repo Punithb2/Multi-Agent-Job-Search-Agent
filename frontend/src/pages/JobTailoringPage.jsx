@@ -8,7 +8,7 @@ const materialOptions = [
   { id: 'cover_letter', title: 'Cover letter', text: 'Draft a role-specific letter without leaving this workspace.' },
 ];
 
-export default function JobTailoringPage({ job, materials, loading, error, onBack, onGenerate }) {
+export default function JobTailoringPage({ job, materials, loading, error, backLabel = 'All job matches', onBack, onGenerate }) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
 
   const activeOption = useMemo(
@@ -21,7 +21,7 @@ export default function JobTailoringPage({ job, materials, loading, error, onBac
 
   return (
     <section className="page-section tailoring-page">
-      <button className="back-button" onClick={onBack}><Icon name="back" /> All job matches</button>
+      <button className="back-button" onClick={onBack}><Icon name="back" /> {backLabel}</button>
 
       <section className="tailoring-hero">
         <div className="tailoring-hero-copy">

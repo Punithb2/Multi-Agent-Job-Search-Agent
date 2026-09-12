@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class AgentState(TypedDict):
     base_resume: str
     target_role: str
+    country: str
     location: str
     remote_only: bool
     experience_level: str

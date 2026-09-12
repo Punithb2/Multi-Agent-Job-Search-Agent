@@ -20,12 +20,13 @@ llm = ChatGoogleGenerativeAI(
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 JSEARCH_HOST = "jsearch.p.rapidapi.com"
 JSEARCH_TIMEOUT = (10, 45)  # connect timeout, then up to 45 seconds for the provider response
+JSON_GENERATION_CONFIG = {"response_mime_type": "application/json"}
 
 
-def invoke_with_retry(chain, prompt, max_retries=3, base_delay=15):
+def invoke_with_retry(chain, prompt, max_retries=3, base_delay=15, **invoke_kwargs):
     for attempt in range(max_retries):
         try:
-            return chain.invoke(prompt)
+            return chain.invoke(prompt, **invoke_kwargs)
         except ResourceExhausted:
             if attempt == max_retries - 1:
                 raise
@@ -47,6 +48,14 @@ EXPERIENCE_MAP = {
     "any": None,
     "entry": "no_experience,under_3_years_experience",
     "experienced": "more_than_3_years_experience",
+}
+
+COUNTRY_NAMES = {
+    "in": "India",
+    "us": "United States",
+    "gb": "United Kingdom",
+    "ca": "Canada",
+    "au": "Australia",
 }
 
 
@@ -105,7 +114,10 @@ Rules:
 Resume:
 {resume_text[:18000]}
 """
-    profile = _response_json(invoke_with_retry(llm, prompt))
+    # Gemini JSON mode prevents malformed strings from disabling resume-aware ranking.
+    profile = _response_json(
+        invoke_with_retry(llm, prompt, generation_config=JSON_GENERATION_CONFIG)
+    )
     skills = profile.get("skills", [])
     if not isinstance(skills, list):
         skills = []
@@ -222,7 +234,9 @@ Jobs:
 {json.dumps(ranking_input, ensure_ascii=False)}
 """
     try:
-        result = _response_json(invoke_with_retry(llm, prompt))
+        result = _response_json(
+            invoke_with_retry(llm, prompt, generation_config=JSON_GENERATION_CONFIG)
+        )
         ranked = result.get("ranked_jobs", [])
         if not isinstance(ranked, list):
             raise ValueError("ranked_jobs was not a list")
@@ -259,19 +273,24 @@ def job_researcher_node(state: AgentState):
         print("⚠️ RAPIDAPI_KEY is not set — skipping job search.")
         return {"job_descriptions": [], "research_attempted": True}
 
-    query = state["target_role"]
+    country = str(state.get("country") or "in").strip().lower()
+    country_name = COUNTRY_NAMES.get(country, country.upper())
     location = (state.get("location") or "").strip()
-    if location:
-        query = f"{query} in {location}"
+    search_location = location or country_name
+    query = f"{state['target_role']} jobs in {search_location}"
 
-    params = {"query": query, "page": "1", "num_pages": "2"}
+    # JSearch V5 defaults to US results, so country must always be explicit.
+    # One page returns up to 10 jobs and uses one free-tier request credit.
+    params = {"query": query, "country": country, "num_pages": "1"}
+    if location:
+        params["location"] = f"{location}, {country_name}"
 
     date_posted = state.get("date_posted")
     if date_posted and date_posted != "all":
         params["date_posted"] = date_posted
 
     if state.get("remote_only"):
-        params["remote_jobs_only"] = "true"
+        params["work_from_home"] = "true"
 
     job_requirements = EXPERIENCE_MAP.get(state.get("experience_level"))
     if job_requirements:
@@ -292,6 +311,8 @@ def job_researcher_node(state: AgentState):
 
     result_data = data.get("data", [])
     job_results = result_data.get("jobs", result_data.get("results", [])) if isinstance(result_data, dict) else result_data
+    accepted_parameters = data.get("parameters", {})
+    print(f"JSearch accepted parameters: {accepted_parameters}")
 
     if not isinstance(job_results, list):
         print(f"⚠️ Unexpected JSearch response shape. Top-level keys: {list(data.keys())}")
@@ -302,13 +323,19 @@ def job_researcher_node(state: AgentState):
         if not isinstance(item, dict):
             continue
         description = (item.get("job_description") or "").strip()
+        location_parts = [
+            item.get("job_city"),
+            item.get("job_state"),
+            item.get("job_country"),
+        ]
+        formatted_location = ", ".join(dict.fromkeys(str(part).strip() for part in location_parts if part))
         jobs.append({
             "job_id": item.get("job_id", ""),
             "title": item.get("job_title", "Unknown"),
             "company": item.get("employer_name", "Unknown"),
             "description": description[:1000],
             "url": item.get("job_apply_link", ""),
-            "location": item.get("job_city") or item.get("job_country") or "",
+            "location": formatted_location,
             "employment_type": item.get("job_employment_type_text", ""),
             "is_remote": bool(item.get("job_is_remote", False)),
         })
