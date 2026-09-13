@@ -458,6 +458,10 @@ Content rules:
   dates, degrees, grades, projects, metrics, or skills.
 - Reorder and reword bullet points so the experience most relevant to this job
   comes first, using the job description's terminology where it honestly applies.
+- Never change what a product, project, or system actually was: keep its domain,
+  purpose, and name (a "proctoring platform" stays a proctoring platform, an
+  "anti-cheating system" stays an anti-cheating system). Only rephrase how the
+  candidate's work on it is described.
 - Keep the original resume's sections, in the original order, with the original
   section headings.
 - If the original has a summary or objective, rewrite it as a general
@@ -467,16 +471,43 @@ Content rules:
   employer or the position belongs in the cover letter.
 - Leave dates exactly as written in the original, even if they look inconsistent.
 
-Format (Markdown, exactly this structure):
-# Candidate Full Name
-contact details from the original on one line, separated by " | "
+Output format: Markdown, always using this syntax, whatever the original looks like.
+- "# " before the candidate's name.
+- A headline under the name only if the original has one, wrapped in single asterisks.
+- The contact details on one line, separated by " | ".
+- "## " before every section heading.
+- "### " before the first line of every entry (a job, school, project, or
+  certificate), keeping the original's order of name, then " | " and the dates
+  and location if the original shows them.
+- The entry's second line (such as a role or degree) on its own line wrapped in
+  single asterisks, ONLY when the original shows a second line for that entry.
+  Never invent one (for example, do not add a role like "Developer" to a project).
+- Where the original uses bullet points, "- " for each. Never use the "•" character.
+- Where the original describes something in a paragraph, keep it a paragraph.
+- In a skills-style section, one "**Label** — values" line per category.
+- Keep the resume about as long as the original, so it fits the same number of pages.
 
-## Section Heading
-### Role or degree, Organization | Dates
-- Bullet point
+Example of the syntax only (use the candidate's real content and section names):
 
-Only use "| Dates" when the original lists dates for that entry. Output ONLY the
-resume: no greeting, no notes about what changed, no text before or after.
+# Jane Doe
+*Data Analyst*
+jane@example.com | +1 555 0100 | Pune | linkedin.com/in/janedoe
+
+## SUMMARY
+Two or three sentences about the candidate.
+
+## EXPERIENCE
+### Acme Analytics | 06/2023 – 05/2025 | Pune
+*Junior Data Analyst*
+- A bullet point about the work.
+- Another bullet point.
+
+## SKILLS
+**Languages** — Python, SQL
+**Tools** — Excel, Power BI
+
+Output ONLY the resume: no greeting, no notes about what changed, no text before
+or after.
 
 Original resume:
 {state['base_resume']}

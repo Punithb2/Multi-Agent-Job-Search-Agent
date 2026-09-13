@@ -1,8 +1,17 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 
+/**
+ * Models sometimes copy "•" bullets from a PDF resume instead of writing "- ".
+ * Markdown doesn't treat those as list items, so convert them. Applied to both
+ * the on-screen view and PDF export, so they always agree.
+ */
+export function normalizeMarkdown(markdown) {
+  return String(markdown || '').replace(/^([ \t]*)[•●▪◦‣∙]\s*/gm, '$1- ');
+}
+
 /** Parse generated markdown with the same parser the on-screen view uses. */
 export function parseMarkdown(markdown) {
-  return fromMarkdown(markdown || '');
+  return fromMarkdown(normalizeMarkdown(markdown));
 }
 
 /** Plain text of any markdown node, keeping soft line breaks. */

@@ -34,9 +34,15 @@ experience level, remote preference, and how recently the job was posted.
 tailored resume, or a cover letter — each independently, so you only spend API
 calls on what you want.
 
-**PDF export.** Download any of the three documents as a clean, text-based PDF
-that stays readable by applicant tracking systems. The PDF library loads only
-when first used, so it adds nothing to the initial page load.
+**PDF export in your own resume's style.** Download any of the three documents as
+a clean, text-based PDF that stays readable by applicant tracking systems. The
+tailored resume and cover letter are rebuilt in the look of the resume you
+uploaded: its fonts (using metric-compatible stand-ins such as Carlito for
+Calibri and Tinos for Times New Roman), sizes, colours, name alignment, heading
+rules, and line spacing, fitted to the same number of pages. The style is read
+directly from the PDF, with no AI request. Graphics, icons, and multi-column
+layouts are not reproduced. The PDF library and fonts load only when first used,
+so they add nothing to the initial page load.
 
 **Bring your own job.** Found a posting on another site? Paste its link and
 CareerAtlas reads the job details — from the page's structured job data when it
@@ -273,12 +279,14 @@ backend/
   graph.py          workflow wiring
   state.py          shared agent state
   job_extract.py    reads a job posting from a pasted link, with SSRF protection
+  resume_style.py   reads fonts, sizes, colours, and layout from an uploaded resume PDF
   mock_data.py      sample data for MOCK_MODE
 frontend/
   src/
     pages/          Search, Jobs, Tailoring, CustomJob, Auth, SavedJobs, History
     components/     Icon set, AccountMenu, SignInPrompt, shared UI
-    lib/            Supabase client, auth, API client, saved jobs, history, PDF export
+    lib/            Supabase client, auth, API client, saved jobs, history, and PDF
+                    export (layouts for resume, cover letter, and general documents)
 supabase/
   schema.sql        tables, indexes, RLS policies, signup trigger
   SETUP.md          step-by-step Supabase setup

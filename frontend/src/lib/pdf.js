@@ -1,7 +1,7 @@
 import { buildCoverLetterDocument } from './pdfCoverLetter';
 import { DEFAULT_FONT, ensureFonts } from './pdfFonts';
 import { NO_LIGATURES, horizontalRule, inlineRuns, parseMarkdown } from './pdfMarkdown';
-import { buildResumeDocument } from './pdfResume';
+import { DENSITY_LEVELS, buildResumeDocument } from './pdfResume';
 
 const DOCUMENT_TITLES = {
   skill_gap: 'Skill Gap Analysis',
@@ -115,19 +115,63 @@ function buildGeneralDocument({ markdown, action, job }) {
  * Pick the layout for a document. The resume and cover letter use the styling
  * read from the candidate's uploaded resume when it is available.
  */
-export function buildPdfDocument({ markdown, action, job, style }) {
+export function buildPdfDocument({ markdown, action, job, style, density = 0 }) {
   let built = null;
-  if (action === 'resume_tailor') built = buildResumeDocument({ markdown, style, job });
+  if (action === 'resume_tailor') built = buildResumeDocument({ markdown, style, job, density });
   if (action === 'cover_letter') built = buildCoverLetterDocument({ markdown, style, job });
   built = built || buildGeneralDocument({ markdown, action, job });
   built.document.info = { title: `${DOCUMENT_TITLES[action] || 'Document'}${job?.title ? ` - ${job.title}` : ''}` };
   return built;
 }
 
+/**
+ * Build a document, and for a styled resume keep it to the original's page count:
+ * if it runs over, try progressively tighter layouts and use the first that fits.
+ * `countPages(document)` renders a document and resolves to its page count.
+ */
+export async function buildFittedPdfDocument({ markdown, action, job, style, countPages }) {
+  let built = buildPdfDocument({ markdown, action, job, style });
+  if (action !== 'resume_tailor' || !built.targetPages || !countPages) return built;
+
+  for (let density = 0; density < DENSITY_LEVELS.length; density += 1) {
+    if (density > 0) built = buildPdfDocument({ markdown, action, job, style, density });
+    // pdfmake writes layout state into the definition while rendering, and a
+    // second render of that same object comes out differently. Measure a copy
+    // so the definition handed back for the real download is untouched.
+    const pages = await countPages(structuredClone(built.document));
+    built.pages = pages;
+    if (pages <= built.targetPages) return built;
+  }
+  // Even the tightest layout overflows (the content is genuinely longer), so
+  // keep that version: it stays closest to the original's length.
+  return built;
+}
+
+/**
+ * Count the pages in rendered PDF bytes. Page objects are declared as
+ * "/Type /Page" (the page tree is "/Type /Pages"), and pdfmake leaves those
+ * dictionaries uncompressed, so counting them is exact.
+ */
+export function countPdfPages(bytes) {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let text = '';
+  for (let index = 0; index < view.length; index += 0x8000) {
+    text += String.fromCharCode.apply(null, view.subarray(index, index + 0x8000));
+  }
+  return (text.match(/\/Type\s*\/Page(?![s\w])/g) || []).length;
+}
+
+/** Render a document without saving it, to learn how many pages it takes. */
+function pageCounter(pdfMake) {
+  return async (document) => countPdfPages(await pdfMake.createPdf(document).getBuffer());
+}
+
 /** Build and download one generated document as a text-based PDF. */
 export async function downloadMaterialPdf({ markdown, action, job, style }) {
   const pdfMake = await loadPdfMake();
-  const { document, fonts } = buildPdfDocument({ markdown, action, job, style });
-  await ensureFonts(pdfMake, fonts);
+  // Load every font the layouts could use before measuring, so the page count
+  // is taken with the real font metrics.
+  await ensureFonts(pdfMake, buildPdfDocument({ markdown, action, job, style }).fonts);
+  const { document } = await buildFittedPdfDocument({ markdown, action, job, style, countPages: pageCounter(pdfMake) });
   await pdfMake.createPdf(document).download(pdfFilename(action, job));
 }

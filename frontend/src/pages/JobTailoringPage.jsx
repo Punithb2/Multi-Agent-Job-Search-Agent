@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ErrorMessage, Icon } from '../components/ui';
+import ResumePicker from '../components/ResumePicker';
 import { downloadMaterialPdf } from '../lib/pdf';
+import { normalizeMarkdown } from '../lib/pdfMarkdown';
 
 const materialOptions = [
   { id: 'skill_gap', title: 'Skill gap', text: 'See the strongest gaps, risks, and project suggestions for this role.' },
@@ -9,10 +11,28 @@ const materialOptions = [
   { id: 'cover_letter', title: 'Cover letter', text: 'Draft a role-specific letter without leaving this workspace.' },
 ];
 
-export default function JobTailoringPage({ job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', onBack, onGenerate }) {
+export default function JobTailoringPage({ job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', resume, setResume, onBack, onGenerate, onNewJob }) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
   const [downloading, setDownloading] = useState('');
   const [downloadError, setDownloadError] = useState('');
+  const [resumeError, setResumeError] = useState('');
+  const resumeSection = useRef(null);
+
+  // Jobs reopened from History or Saved arrive without a resume attached, so ask
+  // for it right here instead of sending the user back to another page.
+  const generate = (action) => {
+    if (!resume) {
+      setResumeError('Attach your PDF resume to generate this document.');
+      resumeSection.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    onGenerate(action);
+  };
+
+  const attachResume = (file) => {
+    setResume(file);
+    setResumeError('');
+  };
 
   const downloadPdf = async (action, markdown) => {
     setDownloading(action);
@@ -37,7 +57,14 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
 
   return (
     <section className="page-section tailoring-page">
-      <button className="back-button" onClick={onBack}><Icon name="back" /> {backLabel}</button>
+      <div className="studio-toolbar">
+        <button className="back-button" onClick={onBack}><Icon name="back" /> {backLabel}</button>
+        {onNewJob && (
+          <button type="button" className="new-job-button" onClick={onNewJob}>
+            <Icon name="plus" /> Tailor for a different job
+          </button>
+        )}
+      </div>
 
       <section className="tailoring-hero">
         <div className="tailoring-hero-copy">
@@ -73,6 +100,14 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
           <p className="page-intro">Each node now opens in a dedicated workspace so the page stays neat even when the results are long.</p>
         </div>
         {error && <ErrorMessage text={error} />}
+      </div>
+
+      <div className={`studio-resume${resume ? ' has-resume' : ''}${resumeError ? ' needs-resume' : ''}`} ref={resumeSection}>
+        <div className="studio-resume-copy">
+          <strong>{resume ? 'Resume attached' : 'Attach your resume'}</strong>
+          <span>{resume ? 'Every document you generate here is tailored from this file.' : 'Your documents are generated from this resume, so attach it before generating.'}</span>
+        </div>
+        <ResumePicker id="studio-resume-upload" resume={resume} onChange={attachResume} readyText="Used for every document here" error={resumeError} />
       </div>
 
       <section className="tailoring-layout">
@@ -128,7 +163,7 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
               <button
                 className="secondary-button"
                 disabled={Boolean(loading)}
-                onClick={() => onGenerate(activeOption.id)}
+                onClick={() => generate(activeOption.id)}
               >
                 {loading === activeOption.id ? 'Generating...' : activeContent ? 'Generate again' : 'Generate'}
                 <Icon name="arrow" />
@@ -140,7 +175,7 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
           <div className={`node-workspace-body${activeContent ? ' has-content' : ''}`}>
             {activeContent ? (
               <article className="markdown-sheet workspace-markdown">
-                <ReactMarkdown>{activeContent}</ReactMarkdown>
+                <ReactMarkdown>{normalizeMarkdown(activeContent)}</ReactMarkdown>
               </article>
             ) : (
               <div className="workspace-empty">

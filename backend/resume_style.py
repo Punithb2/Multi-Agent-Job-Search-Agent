@@ -82,10 +82,15 @@ def _lightness(rgb) -> float:
 def _collect(page):
     """Text runs (with font, size, position, colour) and horizontal rules on one page."""
     runs, rules = [], []
-    state = {"fill": (0.0, 0.0, 0.0), "stroke": (0.0, 0.0, 0.0), "path": [], "rect": []}
+    state = {"fill": (0.0, 0.0, 0.0), "stroke": (0.0, 0.0, 0.0), "path": [], "rect": [], "line_width": 1.0}
 
     def before(operator, args, cm, tm):
-        if operator in (b"rg", b"g", b"k", b"sc", b"scn"):
+        if operator == b"w" and args:
+            try:
+                state["line_width"] = float(args[0]) * (abs(cm[0]) or 1.0)
+            except (TypeError, ValueError):
+                pass
+        elif operator in (b"rg", b"g", b"k", b"sc", b"scn"):
             rgb = _to_rgb(args)
             if rgb:
                 state["fill"] = rgb
@@ -108,13 +113,14 @@ def _collect(page):
                 width, height = abs(w * sx), abs(h * sy)
                 if height <= 3 and width > 0:  # a thin filled bar reads as a rule
                     left = x * matrix[0] + matrix[4] + min(0, w * sx)
-                    rules.append({"x": left, "y": y * matrix[3] + matrix[5], "width": width, "color": colour})
+                    thickness = height if not stroke else state["line_width"]
+                    rules.append({"x": left, "y": y * matrix[3] + matrix[5], "width": width, "color": colour, "thickness": thickness})
             if stroke and len(state["path"]) >= 2:
                 (m1, x1, y1), (m2, x2, y2) = state["path"][0], state["path"][-1]
                 ax, ay = x1 * m1[0] + m1[4], y1 * m1[3] + m1[5]
                 bx, by = x2 * m2[0] + m2[4], y2 * m2[3] + m2[5]
                 if abs(ay - by) <= 1.5:
-                    rules.append({"x": min(ax, bx), "y": ay, "width": abs(bx - ax), "color": colour})
+                    rules.append({"x": min(ax, bx), "y": ay, "width": abs(bx - ax), "color": colour, "thickness": state["line_width"]})
             state["rect"], state["path"] = [], []
 
     def text(value, cm, tm, font_dict, font_size):
@@ -223,12 +229,14 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
         heading_colors = [line["color"] for line in headings]
         heading_rule_hits = 0
         rule_colors = []
+        rule_thicknesses = []
         for line in headings:
             for rule in rules:
                 below = -16 <= rule["y"] - line["y"] <= 4
                 if below and rule["width"] >= (width - 2 * left_margin) * 0.45:
                     heading_rule_hits += 1
                     rule_colors.append(rule["color"])
+                    rule_thicknesses.append(round(rule.get("thickness", 1.0), 1))
                     break
         heading_style = {
             "size": round(_mode([round(line["size"] * 2) / 2 for line in headings]), 1),
@@ -238,6 +246,7 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
             "color": _mode(heading_colors),
             "rule": heading_rule_hits >= max(2, len(headings) // 2),
             "rule_color": _mode(rule_colors),
+            "rule_width": _mode(rule_thicknesses),
         }
 
     # Accent colour: a clearly coloured heading or name, never near-black or pale.
@@ -259,6 +268,8 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
         return _hex(rgb) if rgb and _lightness(rgb) < 0.85 else None
 
     style = {
+        # The tailored resume is fitted to the same page count as the original.
+        "pages": len(reader.pages),
         "page_size": "LETTER" if abs(width - 612) < 6 and abs(height - 792) < 6 else "A4",
         "margin": clamp(left_margin, 24, 90),
         "body": {"font": body_font, "size": clamp(body_size, 8.5, 12.5), "color": colour_or_none(body_color)},
@@ -283,5 +294,6 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
             "color": colour_or_none(heading_style["color"]),
             "rule": heading_style["rule"],
             "rule_color": colour_or_none(heading_style["rule_color"]),
+            "rule_width": clamp(heading_style["rule_width"] or 1.0, 0.5, 2.5),
         }
     return style

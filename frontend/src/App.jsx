@@ -167,11 +167,7 @@ function App() {
 
   const generateMaterial = async (action) => {
     // Reopening a stored search or document can land here without a resume attached this session.
-    if (!resume) {
-      return setError(studioOrigin === 'custom'
-        ? 'Attach your PDF resume in the job details to generate materials for this job.'
-        : 'Attach your PDF resume on the Discover page to generate materials for this job.');
-    }
+    if (!resume) return setError('Attach your PDF resume below to generate materials for this job.');
     const job = selectedJob;
     const key = jobKey(job);
     const formData = new FormData(); formData.append('action', action);
@@ -427,7 +423,7 @@ function App() {
         onToggleSave={toggleSaveJob}
       />
     )}
-    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} />}
+    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} resume={resume} setResume={(file) => { setResume(file); setError(''); }} onNewJob={() => { startNewCustomJob(); goTo('custom'); }} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} />}
     {page === 'auth' && (
       <AuthPage
         key={authMode}
@@ -465,6 +461,7 @@ function App() {
           removingDocumentId={removingDocumentId}
           onOpenDocument={openDocument}
           onRemoveDocument={removeDocument}
+          onNewJob={() => { startNewCustomJob(); goTo('custom'); }}
         />
       : <AuthPage key={authMode} mode={authMode} reason="Your search history lives in your CareerAtlas account." onChangeMode={setAuthMode} onAuthenticated={() => goTo('history')} onGuest={goHome} />)}
 

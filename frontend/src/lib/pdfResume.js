@@ -40,19 +40,42 @@ export function resolveStyle(style) {
       fontKey: hasStyle ? resolveFontKey(heading.font || body.font) : DEFAULT_FONT,
       color: heading.color || body.color || DEFAULT_STYLE.heading.color,
       ruleColor: heading.rule_color || heading.color || source.accent || '#9aa5b5',
+      ruleWidth: Math.min(2.5, Math.max(0.5, Number(heading.rule_width) || 0.9)),
     },
   };
 }
 
-/** Split "Role, Organization | Jan 2024 – Jun 2024" into its left and right parts. */
+/**
+ * Split "PyGenicArc | 02/2026 – 05/2026 | Bengaluru" at the first separator: the
+ * entry name goes left, and everything after (dates, location) goes right.
+ */
 function splitEntry(text) {
-  const index = text.lastIndexOf(' | ');
+  const index = text.indexOf(' | ');
   if (index === -1) return [text, ''];
   return [text.slice(0, index).trim(), text.slice(index + 3).trim()];
 }
 
-export function buildResumeDocument({ markdown, style }) {
+/** A paragraph that is nothing but one italic span, e.g. "*Headline*". */
+function isItalicLine(node) {
+  const children = (node.children || []).filter((child) => !(child.type === 'text' && !child.value.trim()));
+  return children.length === 1 && children[0].type === 'emphasis';
+}
+
+// Progressively tighter layouts, used when the tailored resume runs longer than
+// the original: first the gaps between blocks shrink, then the text itself.
+export const DENSITY_LEVELS = [
+  { gap: 1, fontDelta: 0, lineHeight: 1 },
+  { gap: 0.7, fontDelta: 0, lineHeight: 0.97 },
+  { gap: 0.55, fontDelta: -0.5, lineHeight: 0.95 },
+  { gap: 0.45, fontDelta: -1, lineHeight: 0.93 },
+];
+
+export function buildResumeDocument({ markdown, style, density = 0 }) {
   const s = resolveStyle(style);
+  const level = DENSITY_LEVELS[Math.min(density, DENSITY_LEVELS.length - 1)];
+  const g = (points) => Math.round(points * level.gap * 10) / 10;
+  const bodySize = Math.max(8.5, s.body.size + level.fontDelta);
+  const headingSize = Math.max(bodySize, s.heading.size + level.fontDelta);
   const contentWidth = PAGE_WIDTHS[s.pageSize] - s.margin * 2;
   const muted = s.body.color;
   const content = [];
@@ -76,13 +99,16 @@ export function buildResumeDocument({ markdown, style }) {
       continue;
     }
 
-    // Lines between the name and the first section are the contact details.
+    // Lines between the name and the first section: an italic headline, then
+    // the contact details.
     if (nameSeen && !sectionSeen && node.type === 'paragraph') {
+      const headline = isItalicLine(node);
       content.push({
         text: inlineRuns(node.children, {}, s.accent || muted),
         color: muted,
         alignment: s.name.align,
-        margin: [0, 0, 0, 2],
+        ...(headline ? { fontSize: bodySize + 2 } : {}),
+        margin: [0, headline ? g(1) : 0, 0, headline ? g(4) : g(2)],
       });
       continue;
     }
@@ -93,14 +119,14 @@ export function buildResumeDocument({ markdown, style }) {
       const title = {
         text: s.heading.uppercase ? text.toUpperCase() : text,
         font: s.heading.fontKey,
-        fontSize: s.heading.size,
+        fontSize: headingSize,
         bold: s.heading.bold,
         color: s.heading.color,
         lineHeight: 1,
-        margin: [0, 10, 0, s.heading.rule ? 0 : 3],
+        margin: [0, g(8), 0, s.heading.rule ? 0 : g(3)],
       };
       content.push(s.heading.rule
-        ? { stack: [title, horizontalRule(contentWidth, s.heading.ruleColor, 0.9, [0, 2, 0, 5])], unbreakable: true }
+        ? { stack: [title, horizontalRule(contentWidth, s.heading.ruleColor, s.heading.ruleWidth, [0, 2, 0, g(4)])], unbreakable: true }
         : title);
       continue;
     }
@@ -110,25 +136,30 @@ export function buildResumeDocument({ markdown, style }) {
       content.push({
         columns: [
           { text: left, bold: true, width: '*' },
-          ...(right ? [{ text: right, width: 'auto', alignment: 'right', italics: true, color: muted }] : []),
+          ...(right ? [{ text: right, width: 'auto', alignment: 'right', color: muted }] : []),
         ],
         columnGap: 12,
-        margin: [0, 5, 0, 2],
+        margin: [0, g(5), 0, 0],
       });
       continue;
     }
 
     if (node.type === 'paragraph') {
-      content.push({ text: inlineRuns(node.children, {}, s.accent || muted), margin: [0, 0, 0, 4] });
+      // The italic second line of an entry (role, degree) sits tight under it.
+      const secondLine = isItalicLine(node);
+      content.push({
+        text: inlineRuns(node.children, {}, s.accent || muted),
+        margin: [0, 0, 0, secondLine ? g(1) : g(4)],
+      });
       continue;
     }
 
     if (node.type === 'list') {
       const items = node.children.map((item) => ({
         text: (item.children || []).flatMap((child) => (child.type === 'paragraph' ? inlineRuns(child.children, {}, s.accent || muted) : [{ text: plainText(child) }])),
-        margin: [0, 0, 0, 0.5],
+        margin: [0, 0, 0, g(0.5)],
       }));
-      content.push({ ...(node.ordered ? { ol: items } : { ul: items }), margin: [0, 1, 0, 4] });
+      content.push({ ...(node.ordered ? { ol: items } : { ul: items }), margin: [0, g(1), 0, g(4)] });
       continue;
     }
 
@@ -142,9 +173,11 @@ export function buildResumeDocument({ markdown, style }) {
       pageSize: s.pageSize,
       pageMargins: [s.margin, s.margin, s.margin, s.margin],
       content,
-      defaultStyle: { font: s.body.fontKey, fontSize: s.body.size, lineHeight: s.lineHeight, color: s.body.color, fontFeatures: NO_LIGATURES },
+      defaultStyle: { font: s.body.fontKey, fontSize: bodySize, lineHeight: s.lineHeight * level.lineHeight, color: s.body.color, fontFeatures: NO_LIGATURES },
     },
     fonts: [s.body.fontKey, s.name.fontKey, s.heading.fontKey],
     matched: s.matched,
+    targetPages: Number(style?.pages) || null,
+    density,
   };
 }

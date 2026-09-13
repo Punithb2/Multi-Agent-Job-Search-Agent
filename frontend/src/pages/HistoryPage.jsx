@@ -116,7 +116,7 @@ function DocumentsTab({ documents, loading, error, removingId, onOpen, onRemove 
 export default function HistoryPage({
   records = [], loading = false, error = '', onBack, onViewResults, onSearchAgain,
   tab = 'searches', onChangeTab,
-  documents = [], documentsLoading = false, documentsError = '', removingDocumentId = '', onOpenDocument, onRemoveDocument,
+  documents = [], documentsLoading = false, documentsError = '', removingDocumentId = '', onOpenDocument, onRemoveDocument, onNewJob,
 }) {
   const isDocuments = tab === 'documents';
   return (
@@ -132,6 +132,7 @@ export default function HistoryPage({
             : 'Once you run a search while signed in, it will be listed here.'}
       </p>
 
+      <div className="history-toolbar">
       <div className="history-tabs" role="tablist" aria-label="History sections">
         <button type="button" role="tab" id="tab-searches" aria-controls="panel-history" aria-selected={!isDocuments} className={`history-tab${!isDocuments ? ' is-active' : ''}`} onClick={() => onChangeTab('searches')}>
           <Icon name="search" /> Searches
@@ -139,6 +140,12 @@ export default function HistoryPage({
         <button type="button" role="tab" id="tab-documents" aria-controls="panel-history" aria-selected={isDocuments} className={`history-tab${isDocuments ? ' is-active' : ''}`} onClick={() => onChangeTab('documents')}>
           <Icon name="document" /> Documents
         </button>
+      </div>
+      {isDocuments && onNewJob && (
+        <button type="button" className="new-job-button" onClick={onNewJob}>
+          <Icon name="plus" /> Tailor for a new job
+        </button>
+      )}
       </div>
 
       <div role="tabpanel" id="panel-history" aria-labelledby={isDocuments ? 'tab-documents' : 'tab-searches'}>

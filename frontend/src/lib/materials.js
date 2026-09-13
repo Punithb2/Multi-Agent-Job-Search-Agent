@@ -4,6 +4,11 @@ import { jobKey } from './savedJobs';
 /** The document columns on job_materials, matching the Studio's action ids. */
 export const MATERIAL_ACTIONS = ['skill_gap', 'resume_tailor', 'cover_letter'];
 
+// Postgres "undefined column". document_style arrived after job_materials, so a
+// database that hasn't re-run schema.sql lacks it; documents must still load and
+// save there, just without the stored styling.
+const UNDEFINED_COLUMN = '42703';
+
 /** Newest documents shown in the History tab. */
 const DOCUMENTS_LIMIT = 50;
 
@@ -28,11 +33,9 @@ function pickMaterials(row) {
  */
 export async function fetchMaterialsForJob(key) {
   if (!supabase || !key) return { materials: {}, style: null };
-  const { data, error } = await supabase
-    .from('job_materials')
-    .select(`${MATERIAL_ACTIONS.join(', ')}, document_style`)
-    .eq('job_key', key)
-    .maybeSingle();
+  const query = (columns) => supabase.from('job_materials').select(columns).eq('job_key', key).maybeSingle();
+  let { data, error } = await query(`${MATERIAL_ACTIONS.join(', ')}, document_style`);
+  if (error?.code === UNDEFINED_COLUMN) ({ data, error } = await query(MATERIAL_ACTIONS.join(', ')));
   if (error) throw new Error(error.message);
   return { materials: pickMaterials(data), style: data?.document_style || null };
 }
@@ -59,7 +62,12 @@ export async function saveMaterial(job, action, content, style = null) {
   // Only send a style when one was read, so a skill gap save never clears it.
   if (style) row.document_style = style;
 
-  const { error } = await supabase.from('job_materials').upsert(row, { onConflict: 'user_id,job_key' });
+  const upsert = (payload) => supabase.from('job_materials').upsert(payload, { onConflict: 'user_id,job_key' });
+  let { error } = await upsert(row);
+  if (error?.code === UNDEFINED_COLUMN && row.document_style) {
+    delete row.document_style;
+    ({ error } = await upsert(row));
+  }
   if (error) throw new Error(error.message);
 }
 

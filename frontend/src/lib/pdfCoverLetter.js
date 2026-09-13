@@ -82,12 +82,13 @@ export function buildCoverLetterDocument({ markdown, style, job }) {
 
   content.push({ text: letter.salutation, margin: [0, 0, 0, 10] });
   if (letter.salutationRest) {
-    content.push({ text: letter.salutationRest, alignment: 'justify', margin: [0, 0, 0, 10] });
+    content.push({ text: letter.salutationRest, margin: [0, 0, 0, 10] });
   }
   for (const block of letter.body) {
     content.push({
       text: block.type === 'paragraph' ? inlineRuns(block.children, {}, ruleColor) : plainText(block),
-      alignment: 'justify',
+      // Left-aligned on purpose: pdfmake justifies by stretching the space after
+      // hyphens it breaks on, which prints "hands- on" and "scikit- learn".
       margin: [0, 0, 0, 10],
     });
   }
