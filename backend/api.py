@@ -177,6 +177,11 @@ async def start_job_search(
         )
         print(f"[timing] profile + job search (parallel): {time.perf_counter() - stage_started:.1f}s")
 
+        # The experience filter the user picked outranks what was inferred from the
+        # resume, so an entry-level search keeps senior roles out of the results.
+        if experience_level == "entry":
+            candidate_profile = {**candidate_profile, "experience_level": "entry"}
+
         ranking_started = time.perf_counter()
         ranked_jobs, ranking_mode = await asyncio.to_thread(
             rank_jobs_for_candidate,

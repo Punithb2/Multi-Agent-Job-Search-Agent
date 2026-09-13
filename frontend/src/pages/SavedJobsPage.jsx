@@ -50,6 +50,11 @@ export default function SavedJobsPage({ jobs = [], loading = false, error = '', 
                   {job.location || 'Location not specified'}
                   {job.employment_type ? ` | ${job.employment_type}` : ''}
                 </p>
+                {(job.posted_at || job.publisher || job.salary) && (
+                  <p className="job-source">
+                    {[job.posted_at && `Posted ${job.posted_at}`, job.salary, job.publisher && `via ${job.publisher}`].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 <p className="job-description">{job.description || 'No summary provided.'}</p>
                 <div className="job-actions">
                   <button className="secondary-button" onClick={() => onTailor(job)}>

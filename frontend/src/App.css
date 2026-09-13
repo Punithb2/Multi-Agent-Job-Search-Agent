@@ -61,3 +61,5 @@ button,input,select { font:inherit; } button { cursor:pointer; } button:disabled
 @media (max-width:700px) { .studio-resume { grid-template-columns:1fr; gap:12px; padding:14px; }.studio-toolbar,.history-toolbar { align-items:flex-start; flex-direction:column; } }
 
 .markdown-sheet p,.markdown-sheet li { white-space:pre-line; }
+
+.job-source { margin:4px 0 0; color:#9aa3b3; font-size:9.5px; font-weight:600; }

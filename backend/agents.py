@@ -85,11 +85,29 @@ def supervisor_node(state: AgentState):
     return {"next_agent": "FINISH"}
 
 
+# JSearch's job_requirements filter only keeps listings tagged with an experience
+# level, and most are untagged. Measured on "Software Engineer, Bengaluru": the
+# old entry-level value "no_experience,under_3_years_experience" returned 0 jobs
+# and "under_3_years_experience" alone returned 2, while
+# "more_than_3_years_experience" returned a full page. So experienced searches use
+# the filter, and entry-level searches put an entry-level term in the query.
 EXPERIENCE_MAP = {
     "any": None,
-    "entry": "no_experience,under_3_years_experience",
+    "entry": None,
     "experienced": "more_than_3_years_experience",
 }
+
+# How entry-level roles are advertised. Indian listings say "fresher" (10 results
+# in the same test, most of them entry roles, against 4 for "entry level").
+ENTRY_LEVEL_TERMS = {"in": ["fresher", "entry level"]}
+DEFAULT_ENTRY_LEVEL_TERMS = ["entry level", "junior"]
+
+# Below this many results, an entry-level search tries its second phrasing too.
+ENTRY_LEVEL_MIN_RESULTS = 5
+
+# Full postings are kept for the writing agents. The median JSearch description is
+# about 2,700 characters, so the old 1,000-character cut dropped most requirements.
+JOB_DESCRIPTION_LIMIT = 15000
 
 COUNTRY_NAMES = {
     "in": "India",
@@ -209,11 +227,18 @@ def _tokens(value: str) -> set[str]:
     return {token for token in re.findall(r"[a-z0-9+#.]{2,}", value.lower())}
 
 
+SENIOR_TITLE = re.compile(
+    r"\b(senior|sr\.?|principal|staff|lead|manager|director|head of|architect|vp)\b"
+    r"|\b(sde|swe|engineer|developer)\s*(iii|iv|3|4|5)\b",
+    re.IGNORECASE,
+)
+
+
 def _is_seniority_mismatch(job: dict[str, Any], experience_level: str) -> bool:
+    """A clearly senior title shown to an entry-level candidate."""
     if experience_level != "entry":
         return False
-    title = str(job.get("title", "")).lower()
-    return any(term in title for term in ("principal", "director", "staff ", "lead ", "manager"))
+    return bool(SENIOR_TITLE.search(str(job.get("title", ""))))
 
 
 def _fallback_match_score(job: dict[str, Any], profile: dict[str, Any], target_role: str) -> tuple[int, list[str]]:
@@ -348,25 +373,45 @@ def job_researcher_node(state: AgentState):
     country_name = COUNTRY_NAMES.get(country, country.upper())
     location = (state.get("location") or "").strip()
     search_location = location or country_name
-    query = f"{state['target_role']} jobs in {search_location}"
+    role = state["target_role"]
+    experience_level = state.get("experience_level")
 
     # JSearch V5 defaults to US results, so country must always be explicit.
     # One page returns up to 10 jobs and uses one free-tier request credit.
-    params = {"query": query, "country": country, "num_pages": "1"}
+    base_params = {"country": country, "num_pages": "1"}
     if location:
-        params["location"] = f"{location}, {country_name}"
-
+        base_params["location"] = f"{location}, {country_name}"
     date_posted = state.get("date_posted")
     if date_posted and date_posted != "all":
-        params["date_posted"] = date_posted
-
+        base_params["date_posted"] = date_posted
     if state.get("remote_only"):
-        params["work_from_home"] = "true"
-
-    job_requirements = EXPERIENCE_MAP.get(state.get("experience_level"))
+        base_params["work_from_home"] = "true"
+    job_requirements = EXPERIENCE_MAP.get(experience_level)
     if job_requirements:
-        params["job_requirements"] = job_requirements
+        base_params["job_requirements"] = job_requirements
 
+    if experience_level == "entry":
+        # Try the local phrasing first; spend a second request only if it is thin.
+        queries = [f"{term} {role} jobs in {search_location}" for term in ENTRY_LEVEL_TERMS.get(country, DEFAULT_ENTRY_LEVEL_TERMS)]
+    else:
+        queries = [f"{role} jobs in {search_location}"]
+
+    jobs, seen = [], set()
+    for index, query in enumerate(queries):
+        if index > 0 and len(jobs) >= ENTRY_LEVEL_MIN_RESULTS:
+            break
+        for job in _search_jsearch({**base_params, "query": query}):
+            identity = job["job_id"] or job["url"] or f"{job['title']}:{job['company']}"
+            if identity not in seen:
+                seen.add(identity)
+                jobs.append(job)
+        print(f"✅ {len(jobs)} unique jobs after query: '{query}'")
+
+    return {"job_descriptions": jobs, "research_attempted": True}
+
+
+def _search_jsearch(params: dict[str, str]) -> list[dict[str, Any]]:
+    """One JSearch request, normalised to the job shape the app uses."""
     try:
         response = requests.get(
             f"https://{JSEARCH_HOST}/search-v2",
@@ -378,41 +423,37 @@ def job_researcher_node(state: AgentState):
         data = response.json()
     except requests.RequestException as e:
         print(f"❌ JSearch request failed: {e}")
-        return {"job_descriptions": [], "research_attempted": True}
+        return []
 
     result_data = data.get("data", [])
     job_results = result_data.get("jobs", result_data.get("results", [])) if isinstance(result_data, dict) else result_data
-    accepted_parameters = data.get("parameters", {})
-    print(f"JSearch accepted parameters: {accepted_parameters}")
+    print(f"JSearch accepted parameters: {data.get('parameters', {})}")
 
     if not isinstance(job_results, list):
         print(f"⚠️ Unexpected JSearch response shape. Top-level keys: {list(data.keys())}")
-        return {"job_descriptions": [], "research_attempted": True}
+        return []
 
     jobs = []
     for item in job_results[:25]:
         if not isinstance(item, dict):
             continue
-        description = (item.get("job_description") or "").strip()
-        location_parts = [
-            item.get("job_city"),
-            item.get("job_state"),
-            item.get("job_country"),
-        ]
-        formatted_location = ", ".join(dict.fromkeys(str(part).strip() for part in location_parts if part))
+        location_parts = [item.get("job_city"), item.get("job_state"), item.get("job_country")]
         jobs.append({
             "job_id": item.get("job_id", ""),
             "title": item.get("job_title", "Unknown"),
             "company": item.get("employer_name", "Unknown"),
-            "description": description[:1000],
+            "description": (item.get("job_description") or "").strip()[:JOB_DESCRIPTION_LIMIT],
             "url": item.get("job_apply_link", ""),
-            "location": formatted_location,
-            "employment_type": item.get("job_employment_type_text", ""),
+            "location": ", ".join(dict.fromkeys(str(part).strip() for part in location_parts if part)),
+            # search-v2 names this job_employment_type; older responses used the _text form.
+            "employment_type": item.get("job_employment_type") or item.get("job_employment_type_text") or "",
             "is_remote": bool(item.get("job_is_remote", False)),
+            "posted_at": item.get("job_posted_at") or "",
+            "posted_at_utc": item.get("job_posted_at_datetime_utc") or "",
+            "publisher": item.get("job_publisher") or "",
+            "salary": item.get("job_salary_string") or "",
         })
-
-    print(f"✅ Found {len(jobs)} jobs from JSearch (query: '{query}')")
-    return {"job_descriptions": jobs, "research_attempted": True}
+    return jobs
 
 def skill_gap_node(state: AgentState):
     print("🎓 Skill Gap Advisor: Analyzing...")
