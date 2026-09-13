@@ -428,21 +428,62 @@ def skill_gap_node(state: AgentState):
     return {"skill_analysis": _response_text(response.content)}
 
 
+def _job_for_prompt(job: dict[str, Any]) -> str:
+    """The parts of a job that matter to the writing agents, as readable text.
+
+    Search results also carry ranking fields (scores, matched skills), which are
+    noise in a writing prompt, so only the posting itself is passed on.
+    """
+    lines = [
+        f"Title: {job.get('title') or 'Not stated'}",
+        f"Company: {job.get('company') or 'Not stated'}",
+        f"Location: {job.get('location') or 'Not stated'}",
+    ]
+    if job.get("employment_type"):
+        lines.append(f"Employment type: {job['employment_type']}")
+    lines.append("Description:")
+    lines.append(job.get("description") or "Not provided")
+    return "\n".join(lines)
+
+
 def resume_tailor_node(state: AgentState):
     print("📄 Resume Tailor: Rewriting...")
     target_job = state.get("selected_job") or {}
 
     prompt = f"""
-    Rewrite this resume to match the target jobs. Use the gap analysis to emphasize transferable skills. DO NOT invent experience.
+You tailor a candidate's resume for a job they are applying to.
 
-    Output ONLY the rewritten resume itself — no greeting, no explanation of your changes, no "Key Changes" section, no meta-commentary before or after. The output should be ready to copy directly into a document with no editing needed.
+Content rules:
+- Keep every fact true to the original resume. Never invent employers, roles,
+  dates, degrees, grades, projects, metrics, or skills.
+- Reorder and reword bullet points so the experience most relevant to this job
+  comes first, using the job description's terminology where it honestly applies.
+- Keep the original resume's sections, in the original order, with the original
+  section headings.
+- If the original has a summary or objective, rewrite it as a general
+  professional summary about the candidate's strengths for this kind of work.
+- NEVER mention the target company's name or the exact job title being applied
+  for anywhere in the resume. A resume describes the candidate; naming the
+  employer or the position belongs in the cover letter.
+- Leave dates exactly as written in the original, even if they look inconsistent.
 
-    If you notice something that looks like a date inconsistency, leave the original date exactly as given in the source resume — do not silently correct or annotate it.
+Format (Markdown, exactly this structure):
+# Candidate Full Name
+contact details from the original on one line, separated by " | "
 
-    Resume: {state['base_resume']}
-    Selected job: {target_job}
-    Gap Analysis: {state.get('skill_analysis', '')}
-    """
+## Section Heading
+### Role or degree, Organization | Dates
+- Bullet point
+
+Only use "| Dates" when the original lists dates for that entry. Output ONLY the
+resume: no greeting, no notes about what changed, no text before or after.
+
+Original resume:
+{state['base_resume']}
+
+Target job:
+{_job_for_prompt(target_job)}
+"""
     response = invoke_with_retry(llm, prompt)
     return {"tailored_resume": _response_text(response.content)}
 
@@ -452,13 +493,38 @@ def cover_letter_node(state: AgentState):
     target_job = state.get("selected_job") or {"title": "Unknown", "company": "Unknown", "description": ""}
 
     prompt = f"""
-    Write a 3-4 paragraph cover letter for this job using the tailored resume.
+Write a cover letter of 3 to 4 paragraphs for this job, based on the candidate's resume.
 
-    Use the candidate's actual name, email, and phone number as they appear in the resume — never use placeholder text like "[Your Name]" or "[Your Email]". If a detail genuinely isn't available in the resume, omit it rather than inserting a bracketed placeholder.
+Rules:
+- Use only facts from the resume. Never invent experience, skills, or achievements.
+- Use the candidate's real name and contact details exactly as they appear in the
+  resume. Never write placeholders like "[Your Name]"; omit anything not available.
+- Do not include a date, the employer's address, or a subject line. Those are
+  added when the letter is formatted.
 
-    Output ONLY the cover letter itself — no explanation, no meta-commentary.
-    Resume: {state.get('tailored_resume') or state['base_resume']}
-    Target Job: {target_job}
-    """
+Format (plain text, exactly this structure):
+Candidate Full Name
+contact details on one line, separated by " | "
+
+Dear Hiring Manager,
+
+Paragraph one.
+
+Paragraph two.
+
+Paragraph three.
+
+Sincerely,
+Candidate Full Name
+
+Address the greeting to a named person or team only if the job description names
+one. Output ONLY the letter: no notes or text before or after.
+
+Resume:
+{state.get('tailored_resume') or state['base_resume']}
+
+Target job:
+{_job_for_prompt(target_job)}
+"""
     response = invoke_with_retry(llm, prompt)
     return {"cover_letter": _response_text(response.content)}

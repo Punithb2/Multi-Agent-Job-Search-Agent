@@ -22,16 +22,19 @@ function pickMaterials(row) {
   return materials;
 }
 
-/** Documents previously generated for one job, keyed by action id. */
+/**
+ * Documents previously generated for one job, keyed by action id, plus the
+ * styling read from the resume used for them (null if none was captured).
+ */
 export async function fetchMaterialsForJob(key) {
-  if (!supabase || !key) return {};
+  if (!supabase || !key) return { materials: {}, style: null };
   const { data, error } = await supabase
     .from('job_materials')
-    .select(MATERIAL_ACTIONS.join(', '))
+    .select(`${MATERIAL_ACTIONS.join(', ')}, document_style`)
     .eq('job_key', key)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return pickMaterials(data);
+  return { materials: pickMaterials(data), style: data?.document_style || null };
 }
 
 /**
@@ -40,22 +43,23 @@ export async function fetchMaterialsForJob(key) {
  * Only the one document column is sent. On conflict the upsert updates just the
  * supplied columns, so a later cover letter leaves an earlier skill gap intact.
  */
-export async function saveMaterial(job, action, content) {
+export async function saveMaterial(job, action, content, style = null) {
   if (!supabase || !MATERIAL_ACTIONS.includes(action)) return;
   const userId = await currentUserId();
   const key = jobKey(job);
   if (!userId || !key) return;
 
-  const { error } = await supabase.from('job_materials').upsert(
-    {
-      user_id: userId,
-      job_key: key,
-      job_json: job,
-      [action]: content,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,job_key' }
-  );
+  const row = {
+    user_id: userId,
+    job_key: key,
+    job_json: job,
+    [action]: content,
+    updated_at: new Date().toISOString(),
+  };
+  // Only send a style when one was read, so a skill gap save never clears it.
+  if (style) row.document_style = style;
+
+  const { error } = await supabase.from('job_materials').upsert(row, { onConflict: 'user_id,job_key' });
   if (error) throw new Error(error.message);
 }
 

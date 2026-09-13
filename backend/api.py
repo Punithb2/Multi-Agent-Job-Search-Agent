@@ -18,6 +18,7 @@ import os
 import re
 from mock_data import get_mock_analysis, get_mock_extracted_job, get_mock_jobs
 from job_extract import UNREADABLE, ExtractionError, extract_job_from_url
+from resume_style import extract_resume_style
 
 # 1. Initialize the API
 app = FastAPI(title="Job Search AI Backend")
@@ -241,17 +242,27 @@ async def analyze_selected_job(
     if not resume_text:
         raise HTTPException(status_code=422, detail="Could not extract text from the PDF resume.")
 
+    # The resume and cover letter are rebuilt as PDFs in the candidate's own
+    # styling, so read it from the uploaded file. No AI request is involved, and a
+    # PDF that cannot be read simply gets the default styling.
+    style = None
+    if action in ("resume_tailor", "cover_letter"):
+        try:
+            style = extract_resume_style(pdf_bytes)
+        except Exception as style_error:
+            print(f"Resume style could not be read: {style_error}")
+
     state = {"base_resume": resume_text, "selected_job": selected_job}
     if MOCK_MODE:
         result = get_mock_analysis(action, selected_job)
-        return {"status": "success", "action": action, "content": result}
+        return {"status": "success", "action": action, "content": result, "style": style}
 
     # Each click runs only its requested agent. Resume and letter can still be
     # generated independently, using the original resume and selected job.
     node = {"skill_gap": skill_gap_node, "resume_tailor": resume_tailor_node, "cover_letter": cover_letter_node}[action]
     result = node(state)
     field = {"skill_gap": "skill_analysis", "resume_tailor": "tailored_resume", "cover_letter": "cover_letter"}[action]
-    return {"status": "success", "action": action, "content": result.get(field, "")}
+    return {"status": "success", "action": action, "content": result.get(field, ""), "style": style}
 
 
 @app.post("/api/jobs/extract")

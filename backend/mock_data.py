@@ -175,34 +175,59 @@ def get_mock_analysis(action: str, selected_job: dict[str, Any]) -> str:
         )
 
     if action == "resume_tailor":
-        return (
-            "## Punith B\n"
-            f"**Target Role:** {title}\n\n"
-            "**Professional Summary**\n"
-            "AI/ML engineer with hands-on experience building intelligent applications using Python, FastAPI, machine learning pipelines, and generative AI workflows. Strong at turning experimental ideas into usable prototypes and presenting technical work clearly.\n\n"
-            "**Relevant Strengths**\n"
-            "- Python, FastAPI, REST APIs, data preprocessing\n"
-            "- Machine learning model development and evaluation\n"
-            "- LLM workflow prototyping, prompt design, and retrieval-based concepts\n"
-            "- Frontend-backend integration for applied AI products\n\n"
-            "**Selected Projects**\n"
-            "- Built a job-search assistant that searches roles, analyzes fit, and generates job-specific application materials.\n"
-            "- Developed AI-driven applications that connect model outputs to practical user workflows.\n"
-            "- Created end-to-end ML/NLP prototypes with clear problem framing and iterative improvements.\n\n"
-            f"**Tailoring Notes for {company}**\n"
-            f"- Emphasize project outcomes that connect directly to {title} responsibilities.\n"
-            "- Highlight measurable improvements, deployment readiness, and stakeholder value where possible.\n"
-        )
+        # Follows the tailoring prompt's format. Like the real agent, it never
+        # names the target company or job title.
+        return "\n".join([
+            "# Punith B",
+            "punithb165@gmail.com | 8088286388 | Bengaluru | linkedin.com/in/punith",
+            "",
+            "## PROFESSIONAL SUMMARY",
+            "Computer Science graduate and backend developer who builds reliable REST APIs "
+            "and full-stack applications with Python, FastAPI, Django, and PostgreSQL, with "
+            "a focus on clean integrations and clear communication with teammates.",
+            "",
+            "## WORK EXPERIENCE",
+            "### Python Backend Developer Intern, PyGenicArc | Jan 2024 – Jun 2024",
+            "- Built and documented REST APIs with FastAPI and PostgreSQL",
+            "- Integrated React frontends with backend services and resolved API issues",
+            "- Wrote and optimised SQL queries for reporting features",
+            "",
+            "## PROJECTS",
+            "### CareerAtlas, Resume-aware job search | 2026",
+            "- Built a React and FastAPI app that ranks live jobs against a resume with Gemini",
+            "- Added Supabase authentication with row-level security",
+            "",
+            "## EDUCATION",
+            "### B.E. Computer Science and Engineering, K S School of Engineering and Management | 2020 – 2024",
+            "- CGPA 8.04",
+            "",
+            "## SKILLS",
+            "Python, SQL, PostgreSQL, REST APIs, Django, FastAPI, React, Git, MS Office",
+        ])
 
-    return (
-        f"Dear Hiring Manager,\n\n"
-        f"I am excited to apply for the {title} role at {company}. The position stands out to me because it combines applied AI problem-solving with real product impact, which closely matches the kind of work I have been building through my machine learning and software projects.\n\n"
-        "My background includes developing AI-focused applications with Python, FastAPI, and modern ML workflows, along with translating technical ideas into usable tools. I enjoy working across the implementation lifecycle, from experimentation and data handling to backend integration and user-facing delivery.\n\n"
-        f"I would welcome the opportunity to contribute this mindset to your team in {location}. I am especially interested in bringing a practical, product-oriented approach while continuing to grow in areas that matter most for the role.\n\n"
-        "Thank you for your time and consideration. I look forward to the opportunity to discuss how I can contribute.\n\n"
-        "Sincerely,\n"
-        "Punith B"
-    )
+    return "\n".join([
+        "Punith B",
+        "punithb165@gmail.com | 8088286388 | Bengaluru",
+        "",
+        "Dear Hiring Manager,",
+        "",
+        f"I am excited to apply for the {title} role at {company}. The position stands out to me "
+        "because it combines applied problem-solving with real product impact, which closely matches "
+        "the kind of work I have been building through my software projects.",
+        "",
+        "My background includes developing applications with Python, FastAPI, and modern web tooling, "
+        "along with translating technical ideas into usable tools. I enjoy working across the "
+        "implementation lifecycle, from data handling to backend integration and user-facing delivery.",
+        "",
+        f"I would welcome the opportunity to contribute this mindset to your team in {location}. "
+        "I am especially interested in bringing a practical, product-oriented approach while "
+        "continuing to grow in the areas that matter most for the role.",
+        "",
+        "Thank you for your time and consideration. I look forward to discussing how I can contribute.",
+        "",
+        "Sincerely,",
+        "Punith B",
+    ])
 
 
 def get_mock_extracted_job(url: str) -> dict[str, Any]:

@@ -9,7 +9,7 @@ const materialOptions = [
   { id: 'cover_letter', title: 'Cover letter', text: 'Draft a role-specific letter without leaving this workspace.' },
 ];
 
-export default function JobTailoringPage({ job, materials, loading, error, backLabel = 'All job matches', onBack, onGenerate }) {
+export default function JobTailoringPage({ job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', onBack, onGenerate }) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
   const [downloading, setDownloading] = useState('');
   const [downloadError, setDownloadError] = useState('');
@@ -18,7 +18,7 @@ export default function JobTailoringPage({ job, materials, loading, error, backL
     setDownloading(action);
     setDownloadError('');
     try {
-      await downloadMaterialPdf({ markdown, action, job });
+      await downloadMaterialPdf({ markdown, action, job, style: documentStyle });
     } catch (pdfError) {
       console.warn('PDF export failed:', pdfError);
       setDownloadError('We could not create the PDF. Please try again.');
@@ -116,6 +116,7 @@ export default function JobTailoringPage({ job, materials, loading, error, backL
                 <button
                   type="button"
                   className="download-button"
+                  title={documentStyle && activeOption.id !== 'skill_gap' ? 'Styled to match the resume you uploaded' : undefined}
                   disabled={downloading === activeOption.id || loading === activeOption.id}
                   onClick={() => downloadPdf(activeOption.id, activeContent)}
                 >

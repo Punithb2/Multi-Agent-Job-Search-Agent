@@ -27,6 +27,8 @@ function App() {
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [materials, setMaterials] = useState({});
+  // Styling read from the resume used for the open job, for resume and letter PDFs.
+  const [documentStyle, setDocumentStyle] = useState(null);
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
   const [authMode, setAuthMode] = useState('login');
@@ -150,14 +152,15 @@ function App() {
   const selectJob = (job, origin = 'jobs') => {
     const key = jobKey(job);
     activeJobKey.current = key;
-    setSelectedJob(job); setMaterials({}); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0);
+    setSelectedJob(job); setMaterials({}); setDocumentStyle(null); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0);
     if (!user || !key) return;
     // Bring back anything generated for this job before, without regenerating it.
     fetchMaterialsForJob(key)
-      .then((stored) => {
+      .then(({ materials: stored, style }) => {
         if (activeJobKey.current !== key) return;
         // Anything generated while this was loading is newer, so it wins.
         setMaterials((current) => ({ ...stored, ...current }));
+        setDocumentStyle((current) => current || style);
       })
       .catch((loadError) => console.warn('Could not load documents for this job:', loadError.message));
   };
@@ -177,9 +180,13 @@ function App() {
     try {
       const response = await api.post('/api/jobs/analyze', formData);
       const content = response.data.content;
-      if (activeJobKey.current === key) setMaterials((current) => ({ ...current, [action]: content }));
+      const style = response.data.style || null;
+      if (activeJobKey.current === key) {
+        setMaterials((current) => ({ ...current, [action]: content }));
+        if (style) setDocumentStyle(style);
+      }
       if (user && content) {
-        saveMaterial(job, action, content)
+        saveMaterial(job, action, content, style)
           .then(() => setDocuments((current) => ({ ...current, status: 'idle' })))
           .catch((saveError) => console.warn('Could not save this document:', saveError.message));
       }
@@ -356,6 +363,7 @@ function App() {
     setSaved({ status: 'idle', records: [], error: '' });
     setDocuments({ status: 'idle', records: [], error: '' });
     setMaterials({});
+    setDocumentStyle(null);
     setSnapshot(null);
     goTo('search');
   };
@@ -419,7 +427,7 @@ function App() {
         onToggleSave={toggleSaveJob}
       />
     )}
-    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} loading={loading} error={error} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} />}
+    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} />}
     {page === 'auth' && (
       <AuthPage
         key={authMode}

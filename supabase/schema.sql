@@ -163,3 +163,7 @@ create policy "job_materials_update_own" on public.job_materials
 drop policy if exists "job_materials_delete_own" on public.job_materials;
 create policy "job_materials_delete_own" on public.job_materials
   for delete to authenticated using (auth.uid() = user_id);
+
+-- Styling read from the resume used for this job (fonts, sizes, colours), so a
+-- saved resume or cover letter downloads in the candidate's own style later.
+alter table public.job_materials add column if not exists document_style jsonb;
