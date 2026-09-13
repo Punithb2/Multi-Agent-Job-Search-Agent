@@ -122,3 +122,44 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ---------------------------------------------------------------------------
+-- 6. job_materials — generated documents, one row per user per job
+-- ---------------------------------------------------------------------------
+-- Each document column is written independently, so generating a cover letter
+-- never overwrites an earlier skill gap analysis for the same job.
+create table if not exists public.job_materials (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  job_key text not null,
+  job_json jsonb not null,
+  skill_gap text,
+  resume_tailor text,
+  cover_letter text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- A real constraint (not a partial index) so upserts can target it.
+  constraint job_materials_user_job_unique unique (user_id, job_key)
+);
+
+create index if not exists job_materials_user_updated_idx
+  on public.job_materials (user_id, updated_at desc);
+
+alter table public.job_materials enable row level security;
+
+drop policy if exists "job_materials_select_own" on public.job_materials;
+create policy "job_materials_select_own" on public.job_materials
+  for select to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "job_materials_insert_own" on public.job_materials;
+create policy "job_materials_insert_own" on public.job_materials
+  for insert to authenticated with check (auth.uid() = user_id);
+
+-- Upserts need update rights on the row they collide with.
+drop policy if exists "job_materials_update_own" on public.job_materials;
+create policy "job_materials_update_own" on public.job_materials
+  for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "job_materials_delete_own" on public.job_materials;
+create policy "job_materials_delete_own" on public.job_materials
+  for delete to authenticated using (auth.uid() = user_id);

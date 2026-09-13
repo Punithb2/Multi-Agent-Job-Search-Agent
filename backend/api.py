@@ -16,7 +16,8 @@ from agents import (
 )
 import os
 import re
-from mock_data import get_mock_analysis, get_mock_jobs
+from mock_data import get_mock_analysis, get_mock_extracted_job, get_mock_jobs
+from job_extract import UNREADABLE, ExtractionError, extract_job_from_url
 
 # 1. Initialize the API
 app = FastAPI(title="Job Search AI Backend")
@@ -47,6 +48,9 @@ app.add_middleware(
 
 # --- mock mode flag ---
 MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
+
+MAX_JOB_JSON_CHARS = 60_000
+MAX_DESCRIPTION_CHARS = 15_000
 
 print(f"CORS allowed origins: {ALLOWED_ORIGINS} (+ *.vercel.app previews)")
 
@@ -214,12 +218,20 @@ async def analyze_selected_job(
     if resume_pdf.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a PDF.")
 
+    # Jobs pasted in by the user are unbounded, and every node puts the whole job
+    # into its prompt, so cap the payload before it reaches Gemini.
+    if len(selected_job_json) > MAX_JOB_JSON_CHARS:
+        raise HTTPException(status_code=413, detail="That job description is too long. Trim it and try again.")
+
     try:
         selected_job = json.loads(selected_job_json)
         if not isinstance(selected_job, dict) or not selected_job.get("title"):
             raise ValueError
     except (json.JSONDecodeError, ValueError):
         raise HTTPException(status_code=400, detail="Choose a valid job listing before generating materials.")
+
+    if isinstance(selected_job.get("description"), str):
+        selected_job["description"] = selected_job["description"][:MAX_DESCRIPTION_CHARS]
 
     pdf_bytes = await resume_pdf.read()
     if len(pdf_bytes) > 5 * 1024 * 1024:
@@ -240,6 +252,22 @@ async def analyze_selected_job(
     result = node(state)
     field = {"skill_gap": "skill_analysis", "resume_tailor": "tailored_resume", "cover_letter": "cover_letter"}[action]
     return {"status": "success", "action": action, "content": result.get(field, "")}
+
+
+@app.post("/api/jobs/extract")
+async def extract_job_details(url: str = Form(..., max_length=2048)):
+    """Read a job posting from a link the user found on another site."""
+    if MOCK_MODE:
+        return {"status": "success", "job": get_mock_extracted_job(url)}
+    try:
+        job = await asyncio.to_thread(extract_job_from_url, url)
+    except ExtractionError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    except Exception as error:
+        print(f"Job extraction failed: {error}")
+        raise HTTPException(status_code=422, detail=UNREADABLE)
+    print(f"Extracted job '{job['title']}' via {job['extraction']}")
+    return {"status": "success", "job": job}
 
 
 if __name__ == "__main__":

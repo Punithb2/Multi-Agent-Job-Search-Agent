@@ -203,3 +203,27 @@ def get_mock_analysis(action: str, selected_job: dict[str, Any]) -> str:
         "Sincerely,\n"
         "Punith B"
     )
+
+
+def get_mock_extracted_job(url: str) -> dict[str, Any]:
+    """Sample result for /api/jobs/extract in MOCK_MODE, without fetching the link."""
+    return {
+        "title": "Backend Engineer",
+        "company": "Northwind Labs",
+        "location": "Bengaluru, India",
+        "employment_type": "Full Time",
+        "description": (
+            "Northwind Labs is hiring a Backend Engineer to build the APIs behind our "
+            "logistics platform.\n\n"
+            "Responsibilities\n"
+            "- Design and ship REST APIs in Python (FastAPI)\n"
+            "- Model data in PostgreSQL and tune slow queries\n"
+            "- Containerise services with Docker and deploy to AWS\n\n"
+            "Requirements\n"
+            "- 2+ years of backend development experience\n"
+            "- Strong Python and SQL fundamentals\n"
+            "- Familiarity with CI/CD and cloud infrastructure"
+        ),
+        "url": url,
+        "extraction": "mock",
+    }

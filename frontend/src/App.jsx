@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import SearchPage from './pages/SearchPage';
 import JobsPage from './pages/JobsPage';
 import JobTailoringPage from './pages/JobTailoringPage';
 import AuthPage from './pages/AuthPage';
 import SavedJobsPage from './pages/SavedJobsPage';
 import HistoryPage from './pages/HistoryPage';
+import CustomJobPage from './pages/CustomJobPage';
 import AccountMenu from './components/AccountMenu';
 import SignInPrompt from './components/SignInPrompt';
 import { Icon } from './components/ui';
@@ -12,7 +13,10 @@ import { useAuth } from './lib/authContext';
 import { fetchSearchHistory, recordSearch } from './lib/searchHistory';
 import { fetchSavedJobs, jobKey, removeSavedJob, saveJob } from './lib/savedJobs';
 import { api, describeRequestError, wakeBackend } from './lib/api';
+import { deleteDocuments, fetchDocuments, fetchMaterialsForJob, saveMaterial } from './lib/materials';
 import './App.css';
+
+const EMPTY_CUSTOM_DRAFT = { url: '', title: '', company: '', location: '', description: '' };
 
 function App() {
   const { user, loadingSession, accountsEnabled, signOut } = useAuth();
@@ -41,6 +45,18 @@ function App() {
   // True when the backend did not answer its health check quickly, so the first
   // search will have to wait for a free-tier instance to start up.
   const [backendAsleep, setBackendAsleep] = useState(false);
+  const [historyTab, setHistoryTab] = useState('searches');
+  const [documents, setDocuments] = useState({ status: 'idle', records: [], error: '' });
+  const [removingDocumentId, setRemovingDocumentId] = useState('');
+  // Bring-your-own-job draft, kept here so "Edit job details" returns to it intact.
+  const [customDraft, setCustomDraft] = useState(EMPTY_CUSTOM_DRAFT);
+  // One id per custom job, so edits keep its documents attached. A fresh fetch or
+  // "start over" means a different job and gets a new id.
+  const [customJobId, setCustomJobId] = useState('');
+  const [customFetch, setCustomFetch] = useState({ busy: false, error: '', notice: '' });
+  // The job the Studio is showing right now. Async loads and generations check it
+  // before writing, so a slow response for one job never lands on another.
+  const activeJobKey = useRef('');
 
   // Nudge the backend awake on load, while the user is still filling the form.
   useEffect(() => {
@@ -70,6 +86,22 @@ function App() {
     load();
     return () => { active = false; };
   }, [page, user]);
+
+  // Load the signed-in user's generated documents when that History tab opens.
+  useEffect(() => {
+    if (page !== 'history' || historyTab !== 'documents' || !user) return;
+    let active = true;
+    const load = async () => {
+      try {
+        const records = await fetchDocuments();
+        if (active) setDocuments({ status: 'ready', records, error: '' });
+      } catch {
+        if (active) setDocuments({ status: 'ready', records: [], error: 'We could not load your documents right now.' });
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, [page, historyTab, user]);
 
   // Load the shortlist once per signed-in user so job cards can show saved state.
   useEffect(() => {
@@ -115,21 +147,112 @@ function App() {
     finally { setLoading(''); }
   };
 
-  const selectJob = (job, origin = 'jobs') => { setSelectedJob(job); setMaterials({}); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0); };
+  const selectJob = (job, origin = 'jobs') => {
+    const key = jobKey(job);
+    activeJobKey.current = key;
+    setSelectedJob(job); setMaterials({}); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0);
+    if (!user || !key) return;
+    // Bring back anything generated for this job before, without regenerating it.
+    fetchMaterialsForJob(key)
+      .then((stored) => {
+        if (activeJobKey.current !== key) return;
+        // Anything generated while this was loading is newer, so it wins.
+        setMaterials((current) => ({ ...stored, ...current }));
+      })
+      .catch((loadError) => console.warn('Could not load documents for this job:', loadError.message));
+  };
+
   const generateMaterial = async (action) => {
-    // Reopening a stored search can land here without a resume attached this session.
-    if (!resume) return setError('Attach your PDF resume on the Discover page to generate materials for this job.');
+    // Reopening a stored search or document can land here without a resume attached this session.
+    if (!resume) {
+      return setError(studioOrigin === 'custom'
+        ? 'Attach your PDF resume in the job details to generate materials for this job.'
+        : 'Attach your PDF resume on the Discover page to generate materials for this job.');
+    }
+    const job = selectedJob;
+    const key = jobKey(job);
     const formData = new FormData(); formData.append('action', action);
-    formData.append('selected_job_json', JSON.stringify(selectedJob)); formData.append('resume_pdf', resume);
+    formData.append('selected_job_json', JSON.stringify(job)); formData.append('resume_pdf', resume);
     setError(''); setLoading(action);
-    try { const response = await api.post('/api/jobs/analyze', formData); setMaterials((current) => ({ ...current, [action]: response.data.content })); }
+    try {
+      const response = await api.post('/api/jobs/analyze', formData);
+      const content = response.data.content;
+      if (activeJobKey.current === key) setMaterials((current) => ({ ...current, [action]: content }));
+      if (user && content) {
+        saveMaterial(job, action, content)
+          .then(() => setDocuments((current) => ({ ...current, status: 'idle' })))
+          .catch((saveError) => console.warn('Could not save this document:', saveError.message));
+      }
+    }
     catch (requestError) { setError(describeRequestError(requestError, 'We could not generate this material right now.')); }
     finally { setLoading(''); }
   };
 
+  const openDocument = (record) => selectJob(record.job_json, 'history');
+
+  const removeDocument = async (record) => {
+    setRemovingDocumentId(record.id);
+    try {
+      await deleteDocuments(record.id);
+      setDocuments((current) => ({ ...current, records: current.records.filter((item) => item.id !== record.id) }));
+      if (activeJobKey.current === record.job_key) setMaterials({});
+    } catch {
+      setDocuments((current) => ({ ...current, error: 'We could not remove those documents. Please try again.' }));
+    } finally {
+      setRemovingDocumentId('');
+    }
+  };
+
   const goHome = () => goTo('search');
   const goToJobs = () => { if (jobs.length) goTo('jobs'); };
-  const goToStudio = () => { if (selectedJob) goTo('job'); };
+  // With no job open, the Studio starts from the bring-your-own-job form.
+  const goToStudio = () => goTo(selectedJob ? 'job' : 'custom');
+
+  const fetchCustomJob = async (url) => {
+    setCustomFetch({ busy: true, error: '', notice: '' });
+    try {
+      const formData = new FormData();
+      formData.append('url', url);
+      const response = await api.post('/api/jobs/extract', formData);
+      const job = response.data.job || {};
+      setCustomDraft({
+        url: job.url || url,
+        title: job.title || '',
+        company: job.company || '',
+        location: job.location || '',
+        description: job.description || '',
+      });
+      setCustomJobId('');
+      setCustomFetch({ busy: false, error: '', notice: 'Details filled in from the page. Check them before continuing.' });
+    } catch (requestError) {
+      setCustomFetch({
+        busy: false,
+        error: describeRequestError(requestError, "We couldn't read that page. Paste the job description instead."),
+        notice: '',
+      });
+    }
+  };
+
+  const openCustomJob = () => {
+    const id = customJobId || `custom-${crypto.randomUUID()}`;
+    setCustomJobId(id);
+    selectJob({
+      job_id: id,
+      title: customDraft.title.trim(),
+      company: customDraft.company.trim(),
+      location: customDraft.location.trim(),
+      url: customDraft.url.trim(),
+      description: customDraft.description.trim(),
+      employment_type: '',
+      source: 'custom',
+    }, 'custom');
+  };
+
+  const startNewCustomJob = () => {
+    setCustomDraft(EMPTY_CUSTOM_DRAFT);
+    setCustomJobId('');
+    setCustomFetch({ busy: false, error: '', notice: '' });
+  };
 
   // Reopen the stored results of a past search, without a new JSearch call.
   const viewHistoryResults = (record) => {
@@ -231,6 +354,8 @@ function App() {
     setSigningOut(false);
     setHistory({ status: 'idle', records: [], error: '' });
     setSaved({ status: 'idle', records: [], error: '' });
+    setDocuments({ status: 'idle', records: [], error: '' });
+    setMaterials({});
     setSnapshot(null);
     goTo('search');
   };
@@ -248,7 +373,9 @@ function App() {
       <div className="nav-links">
         {navLink('search', 'Discover', 'search', goHome)}
         {navLink('jobs', 'Matches', 'grid', goToJobs, !jobs.length)}
-        {navLink('job', 'Studio', 'wand', goToStudio, !selectedJob)}
+        <button className={`nav-link ${page === 'job' || page === 'custom' ? 'is-active' : ''}`} onClick={goToStudio}>
+          <Icon name="wand" /> Studio
+        </button>
         {accountsEnabled && navLink('saved', 'Saved', 'bookmark', goToSaved)}
         {accountsEnabled && navLink('history', 'History', 'clock', goToHistory)}
       </div>
@@ -263,7 +390,21 @@ function App() {
       )}
     </nav>
 
-    {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch: searchJobs }} />}
+    {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch: searchJobs, onBringYourOwnJob: () => goTo('custom') }} />}
+    {page === 'custom' && (
+      <CustomJobPage
+        draft={customDraft}
+        onChangeDraft={setCustomDraft}
+        resume={resume}
+        setResume={setResume}
+        fetching={customFetch.busy}
+        fetchError={customFetch.error}
+        fetchNotice={customFetch.notice}
+        onFetch={fetchCustomJob}
+        onContinue={openCustomJob}
+        onStartOver={startNewCustomJob}
+      />
+    )}
     {page === 'jobs' && (
       <JobsPage
         jobs={jobs}
@@ -278,7 +419,7 @@ function App() {
         onToggleSave={toggleSaveJob}
       />
     )}
-    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} loading={loading} error={error} backLabel={studioOrigin === 'saved' ? 'Saved jobs' : 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} />}
+    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} loading={loading} error={error} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} />}
     {page === 'auth' && (
       <AuthPage
         key={authMode}
@@ -308,6 +449,14 @@ function App() {
           onBack={() => goTo('search')}
           onViewResults={viewHistoryResults}
           onSearchAgain={searchAgain}
+          tab={historyTab}
+          onChangeTab={setHistoryTab}
+          documents={documents.records}
+          documentsLoading={documents.status !== 'ready'}
+          documentsError={documents.error}
+          removingDocumentId={removingDocumentId}
+          onOpenDocument={openDocument}
+          onRemoveDocument={removeDocument}
         />
       : <AuthPage key={authMode} mode={authMode} reason="Your search history lives in your CareerAtlas account." onChangeMode={setAuthMode} onAuthenticated={() => goTo('history')} onGuest={goHome} />)}
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ErrorMessage, Icon } from '../components/ui';
+import { downloadMaterialPdf } from '../lib/pdf';
 
 const materialOptions = [
   { id: 'skill_gap', title: 'Skill gap', text: 'See the strongest gaps, risks, and project suggestions for this role.' },
@@ -10,6 +11,21 @@ const materialOptions = [
 
 export default function JobTailoringPage({ job, materials, loading, error, backLabel = 'All job matches', onBack, onGenerate }) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
+  const [downloading, setDownloading] = useState('');
+  const [downloadError, setDownloadError] = useState('');
+
+  const downloadPdf = async (action, markdown) => {
+    setDownloading(action);
+    setDownloadError('');
+    try {
+      await downloadMaterialPdf({ markdown, action, job });
+    } catch (pdfError) {
+      console.warn('PDF export failed:', pdfError);
+      setDownloadError('We could not create the PDF. Please try again.');
+    } finally {
+      setDownloading('');
+    }
+  };
 
   const activeOption = useMemo(
     () => materialOptions.find((item) => item.id === activePanel) || materialOptions[0],
@@ -95,15 +111,30 @@ export default function JobTailoringPage({ job, materials, loading, error, backL
               <h3>{activeOption.title}</h3>
               <p>{activeOption.text}</p>
             </div>
-            <button
-              className="secondary-button"
-              disabled={Boolean(loading)}
-              onClick={() => onGenerate(activeOption.id)}
-            >
-              {loading === activeOption.id ? 'Generating...' : activeContent ? 'Generate again' : 'Generate'}
-              <Icon name="arrow" />
-            </button>
+            <div className="workspace-actions">
+              {activeContent && (
+                <button
+                  type="button"
+                  className="download-button"
+                  disabled={downloading === activeOption.id || loading === activeOption.id}
+                  onClick={() => downloadPdf(activeOption.id, activeContent)}
+                >
+                  {downloading === activeOption.id
+                    ? <><span className="spinner spinner-ink" /> Preparing PDF...</>
+                    : <><Icon name="download" /> Download PDF</>}
+                </button>
+              )}
+              <button
+                className="secondary-button"
+                disabled={Boolean(loading)}
+                onClick={() => onGenerate(activeOption.id)}
+              >
+                {loading === activeOption.id ? 'Generating...' : activeContent ? 'Generate again' : 'Generate'}
+                <Icon name="arrow" />
+              </button>
+            </div>
           </header>
+          {downloadError && <div className="workspace-alert"><ErrorMessage text={downloadError} /></div>}
 
           <div className={`node-workspace-body${activeContent ? ' has-content' : ''}`}>
             {activeContent ? (

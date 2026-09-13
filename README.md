@@ -34,6 +34,15 @@ experience level, remote preference, and how recently the job was posted.
 tailored resume, or a cover letter — each independently, so you only spend API
 calls on what you want.
 
+**PDF export.** Download any of the three documents as a clean, text-based PDF
+that stays readable by applicant tracking systems. The PDF library loads only
+when first used, so it adds nothing to the initial page load.
+
+**Bring your own job.** Found a posting on another site? Paste its link and
+CareerAtlas reads the job details — from the page's structured job data when it
+has any, otherwise with Gemini — or paste the description yourself. Attach a
+resume and tailor for it like any other job.
+
 **Accounts, saved jobs, and history.** Sign up to bookmark roles and keep a
 snapshot of every search you run, reopenable later without spending another
 search credit. The app stays fully usable as a guest: search, ranking, and
@@ -63,6 +72,7 @@ Browser (React)
    +-- FastAPI backend
           |-- pypdf ..........  extract resume text (in memory, never stored)
           |-- JSearch ........  fetch live listings
+          |-- job links ......  read postings pasted in by the user (JSON-LD first, then Gemini)
           +-- Gemini .........  candidate profile, ranking, tailored materials
 ```
 
@@ -262,12 +272,13 @@ backend/
   agents.py         LangGraph nodes: research, ranking, tailoring
   graph.py          workflow wiring
   state.py          shared agent state
+  job_extract.py    reads a job posting from a pasted link, with SSRF protection
   mock_data.py      sample data for MOCK_MODE
 frontend/
   src/
-    pages/          Search, Jobs, Tailoring, Auth, SavedJobs, History
+    pages/          Search, Jobs, Tailoring, CustomJob, Auth, SavedJobs, History
     components/     Icon set, AccountMenu, SignInPrompt, shared UI
-    lib/            Supabase client, auth, API client, saved jobs, history
+    lib/            Supabase client, auth, API client, saved jobs, history, PDF export
 supabase/
   schema.sql        tables, indexes, RLS policies, signup trigger
   SETUP.md          step-by-step Supabase setup
@@ -282,3 +293,9 @@ render.yaml         backend deployment settings
 - Paid API keys live only in `backend/.env` and the Render dashboard.
 - `.env` files are gitignored and no secret has ever been committed.
 - Resume PDFs and extracted text are never persisted.
+- The job-link reader only fetches public `http`/`https` addresses. Every
+  address a hostname resolves to is checked, including IPv6 forms that embed an
+  IPv4 address (NAT64, 6to4, IPv4-mapped), and redirects are followed one hop at
+  a time with each target re-checked, so a link cannot reach private networks or
+  cloud metadata endpoints. Pages are capped at 2 MB and only extracted job
+  fields are returned.

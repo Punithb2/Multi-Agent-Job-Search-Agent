@@ -1,8 +1,7 @@
-import { useRef } from 'react';
 import { ErrorMessage, Icon } from '../components/ui';
+import ResumePicker from '../components/ResumePicker';
 
-export default function SearchPage({ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch }) {
-  const fileInput = useRef(null);
+export default function SearchPage({ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch, onBringYourOwnJob }) {
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const submit = (event) => {
     event.preventDefault();
@@ -44,25 +43,7 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
                 disabled={loading === 'search'}
               />
             </label>
-            <div className="field-label">
-              <span>Resume</span>
-              <input
-                ref={fileInput}
-                className="visually-hidden"
-                id="resume-upload"
-                type="file"
-                accept="application/pdf"
-                onChange={(event) => setResume(event.target.files?.[0] || null)}
-              />
-              <label className={`file-picker ${resume ? 'has-file' : ''}`} htmlFor="resume-upload">
-                <Icon name={resume ? 'document' : 'upload'} />
-                <span className="file-copy">
-                  <strong>{resume?.name || 'Choose a PDF resume'}</strong>
-                  <small>{resume ? 'Ready for tailored matches' : 'PDF, maximum 5 MB'}</small>
-                </span>
-                <span className="file-action">Browse</span>
-              </label>
-            </div>
+            <ResumePicker id="resume-upload" resume={resume} onChange={setResume} />
           </div>
           <div className="filters-grid">
             <label className="field-label">
@@ -145,6 +126,14 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
           </div>
         </form>
       </section>
+      <button type="button" className="byo-callout" onClick={onBringYourOwnJob}>
+        <span className="byo-callout-icon"><Icon name="link" /></span>
+        <span className="byo-callout-copy">
+          <strong>Already found a job somewhere else?</strong>
+          <span>Paste its link or description and tailor your resume and cover letter for it directly.</span>
+        </span>
+        <span className="byo-callout-action">Tailor for it <Icon name="arrow" /></span>
+      </button>
     </section>
   );
 }

@@ -1,29 +1,17 @@
 import { EmptyState, ErrorMessage, Icon } from '../components/ui';
 
 const COUNTRY_NAMES = { in: 'India', us: 'United States', gb: 'United Kingdom', ca: 'Canada', au: 'Australia' };
+const DOCUMENT_LABELS = { skill_gap: 'Skill gap', resume_tailor: 'Tailored resume', cover_letter: 'Cover letter' };
 
 function formatDate(value) {
   if (!value) return '';
   return new Date(value).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-/**
- * Past searches. Phase 4 supplies the rows from Supabase; the loading, empty,
- * and error states below are the ones it will keep using.
- */
-export default function HistoryPage({ records = [], loading = false, error = '', onBack, onViewResults, onSearchAgain }) {
+function SearchesTab({ records, loading, error, onViewResults, onSearchAgain }) {
   return (
-    <section className="page-section">
-      <button className="back-button" onClick={onBack}><Icon name="back" /> Back to search</button>
-      <span className="section-kicker">Your activity</span>
-      <h1 className="page-title">Every search you <em>have run.</em></h1>
-      <p className="page-intro">
-        {records.length
-          ? 'Reopen the results a search returned, or run the same search again for fresh listings.'
-          : 'Once you run a search while signed in, it will be listed here.'}
-      </p>
+    <>
       {error && <ErrorMessage text={error} />}
-
       {loading ? (
         <div className="loading-state" role="status" aria-live="polite">
           <span className="spinner spinner-ink" /> Loading your search history...
@@ -67,6 +55,97 @@ export default function HistoryPage({ records = [], loading = false, error = '',
           })}
         </div>
       )}
+    </>
+  );
+}
+
+function DocumentsTab({ documents, loading, error, removingId, onOpen, onRemove }) {
+  return (
+    <>
+      {error && <ErrorMessage text={error} />}
+      {loading ? (
+        <div className="loading-state" role="status" aria-live="polite">
+          <span className="spinner spinner-ink" /> Loading your documents...
+        </div>
+      ) : documents.length === 0 ? (
+        <EmptyState icon="document" title="No documents yet">
+          Generate a skill gap analysis, tailored resume, or cover letter for any job and it will be listed here.
+        </EmptyState>
+      ) : (
+        <div className="history-list">
+          {documents.map((record) => {
+            const job = record.job_json || {};
+            const ready = Object.keys(record.materials || {});
+            return (
+              <article className="history-card" key={record.id}>
+                <div className="history-main">
+                  <div className="history-top">
+                    <span className="match-score">Updated {formatDate(record.updated_at)}</span>
+                    {job.source === 'custom' && <span className="match-badge">Your job</span>}
+                  </div>
+                  <h4>{job.title || 'Untitled role'}</h4>
+                  <p className="job-meta">{[job.company, job.location].filter(Boolean).join(' | ') || 'Company not specified'}</p>
+                  <div className="skill-pills history-filters">
+                    {ready.map((action) => <span key={action}>{DOCUMENT_LABELS[action]}</span>)}
+                  </div>
+                </div>
+                <div className="history-actions">
+                  <button className="secondary-button" onClick={() => onOpen(record)}>
+                    Open documents <Icon name="arrow" />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button icon-button-danger"
+                    onClick={() => onRemove(record)}
+                    disabled={removingId === record.id}
+                    aria-label={`Remove documents for ${job.title || 'this job'}`}
+                    title="Remove documents"
+                  >
+                    {removingId === record.id ? <span className="spinner spinner-ink" /> : <Icon name="trash" />}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function HistoryPage({
+  records = [], loading = false, error = '', onBack, onViewResults, onSearchAgain,
+  tab = 'searches', onChangeTab,
+  documents = [], documentsLoading = false, documentsError = '', removingDocumentId = '', onOpenDocument, onRemoveDocument,
+}) {
+  const isDocuments = tab === 'documents';
+  return (
+    <section className="page-section">
+      <button className="back-button" onClick={onBack}><Icon name="back" /> Back to search</button>
+      <span className="section-kicker">Your activity</span>
+      <h1 className="page-title">{isDocuments ? <>Your application <em>documents.</em></> : <>Every search you <em>have run.</em></>}</h1>
+      <p className="page-intro">
+        {isDocuments
+          ? 'Reopen the skill gap analyses, tailored resumes, and cover letters you have generated.'
+          : records.length
+            ? 'Reopen the results a search returned, or run the same search again for fresh listings.'
+            : 'Once you run a search while signed in, it will be listed here.'}
+      </p>
+
+      <div className="history-tabs" role="tablist" aria-label="History sections">
+        <button type="button" role="tab" id="tab-searches" aria-controls="panel-history" aria-selected={!isDocuments} className={`history-tab${!isDocuments ? ' is-active' : ''}`} onClick={() => onChangeTab('searches')}>
+          <Icon name="search" /> Searches
+        </button>
+        <button type="button" role="tab" id="tab-documents" aria-controls="panel-history" aria-selected={isDocuments} className={`history-tab${isDocuments ? ' is-active' : ''}`} onClick={() => onChangeTab('documents')}>
+          <Icon name="document" /> Documents
+        </button>
+      </div>
+
+      <div role="tabpanel" id="panel-history" aria-labelledby={isDocuments ? 'tab-documents' : 'tab-searches'}>
+        {isDocuments
+          ? <DocumentsTab documents={documents} loading={documentsLoading} error={documentsError} removingId={removingDocumentId} onOpen={onOpenDocument} onRemove={onRemoveDocument} />
+          : <SearchesTab records={records} loading={loading} error={error} onViewResults={onViewResults} onSearchAgain={onSearchAgain} />}
+      </div>
     </section>
   );
 }

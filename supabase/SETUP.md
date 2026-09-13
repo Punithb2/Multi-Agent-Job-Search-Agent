@@ -13,10 +13,13 @@ Resume PDFs and extracted resume text are never uploaded or stored.
 
 1. Open **SQL Editor → New query** in the Supabase dashboard.
 2. Paste the whole contents of [`schema.sql`](./schema.sql) and press **Run**.
-3. The script creates three tables — `profiles`, `search_history`, `saved_jobs` —
-   enables Row Level Security on all of them, adds owner-only policies, and adds
-   a trigger that creates a `profiles` row automatically on sign up.
-   It is safe to run again after any edit.
+3. The script creates four tables — `profiles`, `search_history`, `saved_jobs`,
+   `job_materials` — enables Row Level Security on all of them, adds owner-only
+   policies, and adds a trigger that creates a `profiles` row automatically on
+   sign up. It is safe to run again after any edit.
+
+   **Upgrading an existing project?** Re-run the whole script. It only adds what
+   is missing, and the tailoring Studio needs the `job_materials` table.
 
 Verify in **Table Editor** that each table shows the green **RLS enabled** badge.
 
