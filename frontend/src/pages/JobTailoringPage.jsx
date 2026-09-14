@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ErrorMessage, Icon } from '../components/ui';
 import ResumePicker from '../components/ResumePicker';
+import ResumeReview, { ResumeEditor } from '../components/ResumeReview';
+import { downloadMaterialDocx } from '../lib/docx';
 import { downloadMaterialPdf } from '../lib/pdf';
 import { normalizeMarkdown } from '../lib/pdfMarkdown';
 
@@ -11,8 +13,13 @@ const materialOptions = [
   { id: 'cover_letter', title: 'Cover letter', text: 'Draft a role-specific letter without leaving this workspace.' },
 ];
 
-export default function JobTailoringPage({ job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', resume, setResume, onBack, onGenerate, onNewJob }) {
+export default function JobTailoringPage({
+  job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', resume, setResume,
+  onBack, onGenerate, onNewJob, review, onCheckChanges, onFixChange, onDismissChange, onSaveResume,
+}) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
+  // Tailored resume view: the document, the change review, or the editor.
+  const [resumeView, setResumeView] = useState('document');
   const [downloading, setDownloading] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const [resumeError, setResumeError] = useState('');
@@ -34,17 +41,28 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
     setResumeError('');
   };
 
-  const downloadPdf = async (action, markdown) => {
-    setDownloading(action);
+  const download = async (format, action, markdown) => {
+    setDownloading(format);
     setDownloadError('');
     try {
-      await downloadMaterialPdf({ markdown, action, job, style: documentStyle });
-    } catch (pdfError) {
-      console.warn('PDF export failed:', pdfError);
-      setDownloadError('We could not create the PDF. Please try again.');
+      const exporter = format === 'word' ? downloadMaterialDocx : downloadMaterialPdf;
+      await exporter({ markdown, action, job, style: documentStyle });
+    } catch (exportError) {
+      console.warn(`${format} export failed:`, exportError);
+      setDownloadError(`We could not create the ${format === 'word' ? 'Word document' : 'PDF'}. Please try again.`);
     } finally {
       setDownloading('');
     }
+  };
+
+  const openReview = () => {
+    setResumeView('review');
+    if (!review.changes && resume && !review.checking) onCheckChanges();
+  };
+
+  const saveEdits = async (markdown) => {
+    await onSaveResume(markdown);
+    setResumeView('review');
   };
 
   const activeOption = useMemo(
@@ -54,6 +72,8 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
 
   const activeContent = materials[activeOption.id];
   const completedCount = materialOptions.filter((item) => materials[item.id]).length;
+  const showResumeTabs = activeOption.id === 'resume_tailor' && Boolean(activeContent) && loading !== 'resume_tailor';
+  const flaggedCount = review.changes?.items.filter((item) => item.new_terms?.length).length || 0;
 
   return (
     <section className="page-section tailoring-page">
@@ -147,19 +167,20 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
               <p>{activeOption.text}</p>
             </div>
             <div className="workspace-actions">
-              {activeContent && (
+              {activeContent && ['pdf', 'word'].map((format) => (
                 <button
+                  key={format}
                   type="button"
                   className="download-button"
                   title={documentStyle && activeOption.id !== 'skill_gap' ? 'Styled to match the resume you uploaded' : undefined}
-                  disabled={downloading === activeOption.id || loading === activeOption.id}
-                  onClick={() => downloadPdf(activeOption.id, activeContent)}
+                  disabled={Boolean(downloading) || loading === activeOption.id}
+                  onClick={() => download(format, activeOption.id, activeContent)}
                 >
-                  {downloading === activeOption.id
-                    ? <><span className="spinner spinner-ink" /> Preparing PDF...</>
-                    : <><Icon name="download" /> Download PDF</>}
+                  {downloading === format
+                    ? <><span className="spinner spinner-ink" /> Preparing...</>
+                    : <><Icon name="download" /> {format === 'word' ? 'Word' : 'PDF'}</>}
                 </button>
-              )}
+              ))}
               <button
                 className="secondary-button"
                 disabled={Boolean(loading)}
@@ -172,11 +193,53 @@ export default function JobTailoringPage({ job, materials, documentStyle = null,
           </header>
           {downloadError && <div className="workspace-alert"><ErrorMessage text={downloadError} /></div>}
 
+          {showResumeTabs && (
+            <div className="resume-view-tabs" role="tablist" aria-label="Tailored resume">
+              <button type="button" role="tab" aria-selected={resumeView === 'document'} className={`resume-view-tab${resumeView === 'document' ? ' is-active' : ''}`} onClick={() => setResumeView('document')}>
+                <Icon name="document" /> Resume
+              </button>
+              <button type="button" role="tab" aria-selected={resumeView === 'review'} className={`resume-view-tab${resumeView === 'review' ? ' is-active' : ''}`} onClick={openReview}>
+                <Icon name="shield" /> Review changes
+                {review.changes && <span className={`status-count${flaggedCount ? ' is-flagged' : ''}`}>{review.changes.items.length}</span>}
+              </button>
+              <button type="button" role="tab" aria-selected={resumeView === 'edit'} className={`resume-view-tab${resumeView === 'edit' ? ' is-active' : ''}`} onClick={() => setResumeView('edit')}>
+                <Icon name="wand" /> Edit
+              </button>
+            </div>
+          )}
+
           <div className={`node-workspace-body${activeContent ? ' has-content' : ''}`}>
-            {activeContent ? (
+            {showResumeTabs && resumeView === 'review' ? (
+              <ResumeReview
+                changes={review.changes}
+                checking={review.checking}
+                error={review.error}
+                canCheck={Boolean(resume)}
+                onCheck={onCheckChanges}
+                onFix={onFixChange}
+                onDismiss={onDismissChange}
+                onEdit={() => setResumeView('edit')}
+              />
+            ) : showResumeTabs && resumeView === 'edit' ? (
+              <ResumeEditor key={activeContent} value={activeContent} saving={review.saving} onSave={saveEdits} onCancel={() => setResumeView('document')} />
+            ) : activeContent ? (
+              <div className="resume-document">
+              {showResumeTabs && review.changes?.items.length > 0 && (
+                <button type="button" className={`review-callout${flaggedCount ? ' is-flagged' : ''}`} onClick={openReview}>
+                  <Icon name="shield" />
+                  <span>
+                    <strong>{review.changes.items.length} {review.changes.items.length === 1 ? 'change' : 'changes'} to check.</strong>{' '}
+                    {flaggedCount
+                      ? `${flaggedCount} ${flaggedCount === 1 ? 'line mentions' : 'lines mention'} details that aren't in your original resume.`
+                      : 'See exactly what was reworded, added, or left out.'}
+                  </span>
+                  <Icon name="arrow" />
+                </button>
+              )}
               <article className="markdown-sheet workspace-markdown">
                 <ReactMarkdown>{normalizeMarkdown(activeContent)}</ReactMarkdown>
               </article>
+              </div>
             ) : (
               <div className="workspace-empty">
                 <div className="workspace-empty-icon"><Icon name="spark" /></div>

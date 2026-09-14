@@ -29,20 +29,32 @@ app never dead-ends.
 
 **Live job search.** One target role at a time, filtered by country, city,
 experience level, remote preference, and how recently the job was posted.
+Entry-level searches add the terms employers actually use for those roles (such
+as "fresher" in India), and **Load more jobs** fetches the next page of results
+without repeating the ones already shown.
 
 **AI tailoring studio.** For a selected job, generate a skill-gap analysis, a
 tailored resume, or a cover letter — each independently, so you only spend API
-calls on what you want.
+calls on what you want. Generating documents requires a free account.
 
-**PDF export in your own resume's style.** Download any of the three documents as
-a clean, text-based PDF that stays readable by applicant tracking systems. The
+**Check every change to your resume.** After tailoring, **Review changes** lines
+the new resume up against the one you uploaded and shows, word by word, what was
+reworded, added, or left out. Lines that bring in numbers or names your original
+never mentions (a tool you haven't used, a metric you didn't claim) are flagged
+first. Revert a line to its original wording, remove an added line, or edit the
+resume directly, and every download uses the corrected version. The comparison
+is plain text matching, not another AI call, so it can't invent changes of its own.
+
+**PDF and Word export in your own resume's style.** Download any of the three
+documents as a clean, text-based PDF that stays readable by applicant tracking systems. The
 tailored resume and cover letter are rebuilt in the look of the resume you
 uploaded: its fonts (using metric-compatible stand-ins such as Carlito for
 Calibri and Tinos for Times New Roman), sizes, colours, name alignment, heading
 rules, and line spacing, fitted to the same number of pages. The style is read
 directly from the PDF, with no AI request. Graphics, icons, and multi-column
-layouts are not reproduced. The PDF library and fonts load only when first used,
-so they add nothing to the initial page load.
+layouts are not reproduced. The same documents also download as editable Word
+(`.docx`) files using the resume's font, sizes, and layout. The PDF and Word
+libraries load only when first used, so they add nothing to the initial page load.
 
 **Bring your own job.** Found a posting on another site? Paste its link and
 CareerAtlas reads the job details — from the page's structured job data when it
@@ -51,8 +63,11 @@ resume and tailor for it like any other job.
 
 **Accounts, saved jobs, and history.** Sign up to bookmark roles and keep a
 snapshot of every search you run, reopenable later without spending another
-search credit. The app stays fully usable as a guest: search, ranking, and
-tailoring all work without an account.
+search credit. Guests can search and see ranked matches without an account.
+
+**Application tracker.** Every saved job has a status — Saved, Applied,
+Interview, Offer, or Not selected — and private notes, with filters to see where
+each application stands.
 
 **Your resume is never stored.** The PDF is parsed in memory and discarded. No
 resume file or extracted text is written to the database.
@@ -155,7 +170,13 @@ accounts, saved jobs, or history.
 | `GEMINI_API_KEY` | yes | Google Gemini key. `GOOGLE_API_KEY` also works. |
 | `RAPIDAPI_KEY` | yes | JSearch key for live listings. |
 | `FRONTEND_ORIGINS` | production | Comma-separated frontend URLs allowed by CORS. Leave blank locally. |
+| `SUPABASE_URL` | production | Supabase project URL. With the anon key, lets the API require sign-in for document generation and link reading. |
+| `SUPABASE_ANON_KEY` | production | Supabase **anon/public** key (never the service-role key). |
 | `GEMINI_MODEL` | no | Gemini model to use. Defaults to `gemini-3.5-flash-lite`. |
+| `JSEARCH_DAILY_LIMIT` | no | Most JSearch requests the whole app makes per day (UTC). Default `30`. |
+| `GEMINI_DAILY_LIMIT` | no | Most Gemini requests the whole app makes per day (UTC). Default `450`. |
+| `SEARCHES_PER_IP_PER_DAY` | no | Searches allowed per visitor IP per day. Default `20`. |
+| `GENERATIONS_PER_USER_PER_DAY` | no | Documents each account can generate per day. Default `60`. |
 | `PORT` | no | Port to listen on. Hosts set this automatically. |
 
 ### `frontend/.env` — bundled into the browser, **public**
@@ -202,10 +223,13 @@ frontend, instead of debugging two unknowns at once.
    - `GEMINI_API_KEY` = your key
    - `RAPIDAPI_KEY` = your key
    - `PYTHONUNBUFFERED` = `1` (so application logs appear in the Render dashboard)
+   - `SUPABASE_URL` and `SUPABASE_ANON_KEY` = the same values as the frontend's
+     `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
    - (`FRONTEND_ORIGINS` comes in step 3, once the frontend URL exists)
 5. Deploy, then open `https://<your-service>.onrender.com/health`. You should see
-   `{"status":"ok","jsearch_configured":true,"gemini_configured":true}`. If either
-   says `false`, the key name or value is wrong.
+   `{"status":"ok","jsearch_configured":true,"gemini_configured":true,"auth_configured":true}`.
+   If any says `false`, that variable's name or value is wrong. With
+   `auth_configured` false the API still works but does not require sign-in.
 
 [`render.yaml`](render.yaml) captures these settings if you prefer Render Blueprints.
 
@@ -251,19 +275,25 @@ Worth knowing before you share the link:
 - **Render free instances sleep after ~15 minutes of inactivity.** The next
   request has to start the server, which takes up to a minute. CareerAtlas pings
   `/health` on page load to start waking it early, and shows a notice explaining
-  the wait rather than appearing to hang. To avoid it entirely, point a free
-  uptime monitor at `/health` every 10 minutes, or upgrade the instance.
+  the wait rather than appearing to hang. The
+  [`keep-backend-warm`](.github/workflows/keep-backend-warm.yml) GitHub Actions
+  workflow pings `/health` every 10 minutes from 06:30 to 00:30 IST, which keeps it
+  awake during the day while staying inside Render's 750 free instance hours a
+  month. Set the repository variable `BACKEND_HEALTH_URL` if your backend URL is
+  different, and adjust the cron hours for your time zone.
 - **Supabase free projects pause after ~7 days of inactivity.** Open the
   dashboard to resume one before a demo.
 - **JSearch free tier has a monthly request quota.** CareerAtlas requests a
-  single page per search to conserve it, and reopening a past search reads the
-  stored snapshot instead of searching again.
+  single page per search (further pages only when asked), reopening a past search
+  reads the stored snapshot instead of searching again, and a daily cap
+  (`JSEARCH_DAILY_LIMIT`) stops one busy day from using up the month.
 - **Gemini free tier is rate-limited.** The app defaults to
   `gemini-3.5-flash-lite`, which allows 500 requests/day and 15/minute on the
   free tier, against 20/day for the full Flash models. Each search uses two
   requests, so roughly 250 searches a day. Override the model with the
   `GEMINI_MODEL` environment variable. If the quota is hit anyway, ranking falls
-  back to deterministic scoring immediately rather than retrying.
+  back to deterministic scoring immediately rather than retrying. A daily cap
+  (`GEMINI_DAILY_LIMIT`) keeps the app just under the free allowance.
 
 ## Project structure
 
@@ -275,16 +305,19 @@ backend/
   state.py          shared agent state
   job_extract.py    reads a job posting from a pasted link, with SSRF protection
   resume_style.py   reads fonts, sizes, colours, and layout from an uploaded resume PDF
+  resume_changes.py compares a tailored resume with the original, word by word
+  security.py       rate limits, daily API budgets, and sign-in checks
 frontend/
   src/
     pages/          Search, Jobs, Tailoring, CustomJob, Auth, SavedJobs, History
     components/     Icon set, AccountMenu, SignInPrompt, shared UI
-    lib/            Supabase client, auth, API client, saved jobs, history, and PDF
-                    export (layouts for resume, cover letter, and general documents)
+    lib/            Supabase client, auth, API client, saved jobs, history, PDF and
+                    Word export (layouts for resume, cover letter, and general documents)
 supabase/
   schema.sql        tables, indexes, RLS policies, signup trigger
   SETUP.md          step-by-step Supabase setup
 render.yaml         backend deployment settings
+.github/workflows/  keep-backend-warm: scheduled health ping
 ```
 
 ## Security notes
@@ -293,6 +326,11 @@ render.yaml         backend deployment settings
   their own rows. Verified: anonymous reads return nothing, and an insert
   spoofing another user's id is rejected.
 - Paid API keys live only in `backend/.env` and the Render dashboard.
+- Quota-spending endpoints are protected: searches are rate-limited per IP (5 per
+  10 minutes, 20 per day), document generation and link reading need a signed-in
+  user whose Supabase token the backend verifies, and global daily budgets stop
+  JSearch and Gemini calls before the free quotas run out. The client IP is taken
+  from the proxy's own header, so it can't be spoofed with `X-Forwarded-For`.
 - `.env` files are gitignored and no secret has ever been committed.
 - Resume PDFs and extracted text are never persisted.
 - The job-link reader only fetches public `http`/`https` addresses. Every

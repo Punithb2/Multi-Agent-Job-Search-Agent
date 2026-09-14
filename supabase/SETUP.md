@@ -19,7 +19,9 @@ Resume PDFs and extracted resume text are never uploaded or stored.
    sign up. It is safe to run again after any edit.
 
    **Upgrading an existing project?** Re-run the whole script. It only adds what
-   is missing, and the tailoring Studio needs the `job_materials` table.
+   is missing: the tailoring Studio needs the `job_materials` table, and the
+   application tracker needs the `status` and `notes` columns on `saved_jobs`
+   along with its update policy.
 
 Verify in **Table Editor** that each table shows the green **RLS enabled** badge.
 
@@ -51,11 +53,16 @@ restart `npm run dev` so Vite picks up the new values.
 > `VITE_` value is bundled into the public JavaScript. Row Level Security is what
 > keeps one user's rows invisible to everyone else.
 
+Put the same two values in `backend/.env` (and the Render dashboard) as
+`SUPABASE_URL` and `SUPABASE_ANON_KEY`. The backend uses them to verify that
+document generation and job-link reading come from a signed-in user.
+
 ## 5. What happens if the variables are missing
 
-The app stays fully usable as a guest: search, resume-aware ranking, and AI
-tailoring all work. Only accounts, saved jobs, and search history are switched
-off until the two variables are set.
+Search and resume-aware ranking still work. Accounts, saved jobs, search history,
+and the tailoring Studio's sign-in are switched off until the frontend variables
+are set. Without the backend variables the API does not require sign-in, which is
+fine locally but should not be deployed that way.
 
 ## Free-tier notes
 

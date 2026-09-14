@@ -28,3 +28,9 @@ services:
         sync: false           # entered in the Render dashboard
       - key: FRONTEND_ORIGINS
         sync: false           # set to your Vercel URL once the frontend is live
+      # Lets the API require sign-in for document generation and link reading.
+      # Same values as the frontend's VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false

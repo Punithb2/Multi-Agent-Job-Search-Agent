@@ -11,12 +11,14 @@ import SignInPrompt from './components/SignInPrompt';
 import { Icon } from './components/ui';
 import { useAuth } from './lib/authContext';
 import { fetchSearchHistory, recordSearch } from './lib/searchHistory';
-import { fetchSavedJobs, jobKey, removeSavedJob, saveJob } from './lib/savedJobs';
-import { api, describeRequestError, wakeBackend } from './lib/api';
+import { fetchSavedJobs, jobKey, removeSavedJob, saveJob, updateSavedJob } from './lib/savedJobs';
+import { api, describeRequestError, isSignInError, wakeBackend } from './lib/api';
 import { deleteDocuments, fetchDocuments, fetchMaterialsForJob, saveMaterial } from './lib/materials';
+import { applyFix, changeKey } from './lib/resumeReview';
 import './App.css';
 
 const EMPTY_CUSTOM_DRAFT = { url: '', title: '', company: '', location: '', description: '' };
+const EMPTY_REVIEW = { changes: null, checking: false, saving: false, error: '' };
 
 function App() {
   const { user, loadingSession, accountsEnabled, signOut } = useAuth();
@@ -50,6 +52,9 @@ function App() {
   const [historyTab, setHistoryTab] = useState('searches');
   const [documents, setDocuments] = useState({ status: 'idle', records: [], error: '' });
   const [removingDocumentId, setRemovingDocumentId] = useState('');
+  // The live search behind the Matches page, for fetching further pages.
+  const [searchContext, setSearchContext] = useState(null);
+  const [loadMoreNotice, setLoadMoreNotice] = useState('');
   // Bring-your-own-job draft, kept here so "Edit job details" returns to it intact.
   const [customDraft, setCustomDraft] = useState(EMPTY_CUSTOM_DRAFT);
   // One id per custom job, so edits keep its documents attached. A fresh fetch or
@@ -59,6 +64,9 @@ function App() {
   // The job the Studio is showing right now. Async loads and generations check it
   // before writing, so a slow response for one job never lands on another.
   const activeJobKey = useRef('');
+  // Line-by-line comparison of the tailored resume with the uploaded one. It quotes
+  // the original resume, so it lives only in this session.
+  const [review, setReview] = useState(EMPTY_REVIEW);
 
   // Nudge the backend awake on load, while the user is still filling the form.
   useEffect(() => {
@@ -132,6 +140,20 @@ function App() {
       const response = await api.post('/api/search/start', formData);
       const ranked = response.data.jobs_found || [];
       setJobs(ranked); setSnapshot(null); setPage('jobs'); setBackendAsleep(false);
+      // Everything "Load more" needs to fetch and rank the next page later.
+      setSearchContext({
+        target_role: role.trim(),
+        country: filters.country,
+        location: filters.location,
+        remote_only: filters.remote,
+        experience_level: filters.experience,
+        date_posted: filters.date,
+        profile: response.data.candidate_profile || {},
+        profile_mode: response.data.profile_mode || 'fallback',
+        page: 1,
+        hasMore: Boolean(response.data.has_more),
+      });
+      setLoadMoreNotice('');
       // Saving history is a convenience, never a reason to fail a search.
       if (user) {
         recordSearch({
@@ -149,10 +171,43 @@ function App() {
     finally { setLoading(''); }
   };
 
+  // Fetch the next page of results for the current search and append the new jobs.
+  const loadMoreJobs = async () => {
+    if (!searchContext?.hasMore || loading === 'more') return;
+    const nextPage = searchContext.page + 1;
+    setLoading('more'); setLoadMoreNotice(''); setError('');
+    try {
+      const response = await api.post('/api/search/more', {
+        target_role: searchContext.target_role,
+        country: searchContext.country,
+        location: searchContext.location,
+        remote_only: searchContext.remote_only,
+        experience_level: searchContext.experience_level,
+        date_posted: searchContext.date_posted,
+        profile: searchContext.profile,
+        profile_mode: searchContext.profile_mode,
+        page: nextPage,
+        exclude_ids: jobs.map((job) => jobKey(job)).filter(Boolean),
+      });
+      const shownKeys = new Set(jobs.map((job) => jobKey(job)));
+      const fresh = (response.data.jobs_found || []).filter((job) => !shownKeys.has(jobKey(job)));
+      setJobs((current) => [...current, ...fresh]);
+      const more = Boolean(response.data.has_more) && fresh.length > 0;
+      setSearchContext((current) => ({ ...current, page: nextPage, hasMore: more }));
+      setLoadMoreNotice(fresh.length
+        ? `${fresh.length} more ${fresh.length === 1 ? 'role' : 'roles'} added below.`
+        : 'No more matching roles for this search. Try widening the filters.');
+    } catch (requestError) {
+      setLoadMoreNotice(describeRequestError(requestError, 'We could not load more jobs right now.'));
+    } finally {
+      setLoading('');
+    }
+  };
+
   const selectJob = (job, origin = 'jobs') => {
     const key = jobKey(job);
     activeJobKey.current = key;
-    setSelectedJob(job); setMaterials({}); setDocumentStyle(null); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0);
+    setSelectedJob(job); setMaterials({}); setDocumentStyle(null); setReview(EMPTY_REVIEW); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0);
     if (!user || !key) return;
     // Bring back anything generated for this job before, without regenerating it.
     fetchMaterialsForJob(key)
@@ -165,7 +220,19 @@ function App() {
       .catch((loadError) => console.warn('Could not load documents for this job:', loadError.message));
   };
 
+  // Document generation and link reading spend paid AI quota, so they need an
+  // account. Guests get the sign-in prompt and come back to where they were.
+  const promptToSignIn = (destination, title, message) => setPrompt({
+    title,
+    message,
+    reason: 'Sign in to generate tailored documents.',
+    destination,
+  });
+
   const generateMaterial = async (action) => {
+    if (!user && accountsEnabled) {
+      return promptToSignIn('job', 'Sign in to generate documents', 'A free CareerAtlas account unlocks the skill gap analysis, tailored resume, and cover letter for any job.');
+    }
     // Reopening a stored search or document can land here without a resume attached this session.
     if (!resume) return setError('Attach your PDF resume below to generate materials for this job.');
     const job = selectedJob;
@@ -180,6 +247,7 @@ function App() {
       if (activeJobKey.current === key) {
         setMaterials((current) => ({ ...current, [action]: content }));
         if (style) setDocumentStyle(style);
+        if (action === 'resume_tailor') setReview({ ...EMPTY_REVIEW, changes: response.data.changes || null });
       }
       if (user && content) {
         saveMaterial(job, action, content, style)
@@ -187,8 +255,75 @@ function App() {
           .catch((saveError) => console.warn('Could not save this document:', saveError.message));
       }
     }
-    catch (requestError) { setError(describeRequestError(requestError, 'We could not generate this material right now.')); }
+    catch (requestError) {
+      if (isSignInError(requestError)) promptToSignIn('job', 'Please sign in again', 'Your session has expired. Sign in to keep generating documents.');
+      setError(describeRequestError(requestError, 'We could not generate this material right now.'));
+    }
     finally { setLoading(''); }
+  };
+
+  // Compare the tailored resume on screen with the attached original, for resumes
+  // reopened later or edited by hand.
+  const checkResumeChanges = async (editedMarkdown) => {
+    if (!user && accountsEnabled) {
+      return promptToSignIn('job', 'Sign in to review changes', 'Sign in to compare your tailored resume with the original.');
+    }
+    // Called from a click (an event) or right after saving edits (the new text).
+    const markdown = typeof editedMarkdown === 'string' ? editedMarkdown : materials.resume_tailor;
+    if (!resume || !markdown) return;
+    const key = activeJobKey.current;
+    const formData = new FormData();
+    formData.append('resume_pdf', resume);
+    formData.append('tailored_resume', markdown);
+    setReview((current) => ({ ...current, checking: true, error: '' }));
+    try {
+      const response = await api.post('/api/resume/compare', formData);
+      if (activeJobKey.current === key) setReview((current) => ({ ...current, changes: response.data.changes, checking: false }));
+    } catch (requestError) {
+      if (isSignInError(requestError)) promptToSignIn('job', 'Please sign in again', 'Your session has expired. Sign in to keep reviewing your resume.');
+      if (activeJobKey.current === key) {
+        setReview((current) => ({ ...current, checking: false, error: describeRequestError(requestError, 'We could not compare the resumes right now.') }));
+      }
+    }
+  };
+
+  // Replace the tailored resume with a corrected version, on screen and in storage.
+  const storeTailoredResume = async (markdown) => {
+    const job = selectedJob;
+    setMaterials((current) => ({ ...current, resume_tailor: markdown }));
+    if (!user) return;
+    try {
+      await saveMaterial(job, 'resume_tailor', markdown, documentStyle);
+    } catch (saveError) {
+      console.warn('Could not save the edited resume:', saveError.message);
+      if (activeJobKey.current === jobKey(job)) setError('Your changes are shown here but could not be saved to your account. Please try again.');
+    }
+  };
+
+  const fixResumeChange = (item, fix) => {
+    const updated = applyFix(materials.resume_tailor || '', item, fix);
+    if (updated === null) {
+      setReview((current) => ({ ...current, error: 'That line has changed since the comparison. Compare again to refresh the list.' }));
+      return;
+    }
+    storeTailoredResume(updated);
+    // The fixed line no longer differs, and removing a line shifts the ones below,
+    // which is fine: fixes find their line by its text when the position moved.
+    setReview((current) => ({ ...current, error: '', changes: current.changes && { ...current.changes, items: current.changes.items.filter((entry) => changeKey(entry) !== changeKey(item)) } }));
+  };
+
+  const dismissResumeChange = (item) => setReview((current) => ({
+    ...current,
+    changes: current.changes && { ...current.changes, items: current.changes.items.filter((entry) => changeKey(entry) !== changeKey(item)) },
+  }));
+
+  const saveEditedResume = async (markdown) => {
+    setError('');
+    setReview((current) => ({ ...current, saving: true, error: '' }));
+    await storeTailoredResume(markdown);
+    // Hand edits make the earlier comparison stale, so compare the new text again.
+    setReview(EMPTY_REVIEW);
+    if (resume) checkResumeChanges(markdown);
   };
 
   const openDocument = (record) => selectJob(record.job_json, 'history');
@@ -212,6 +347,9 @@ function App() {
   const goToStudio = () => goTo(selectedJob ? 'job' : 'custom');
 
   const fetchCustomJob = async (url) => {
+    if (!user && accountsEnabled) {
+      return promptToSignIn('custom', 'Sign in to read job links', 'A free account lets CareerAtlas read the job details from a link. You can still paste the description yourself.');
+    }
     setCustomFetch({ busy: true, error: '', notice: '' });
     try {
       const formData = new FormData();
@@ -228,6 +366,7 @@ function App() {
       setCustomJobId('');
       setCustomFetch({ busy: false, error: '', notice: 'Details filled in from the page. Check them before continuing.' });
     } catch (requestError) {
+      if (isSignInError(requestError)) promptToSignIn('custom', 'Please sign in again', 'Your session has expired. Sign in to read job links.');
       setCustomFetch({
         busy: false,
         error: describeRequestError(requestError, "We couldn't read that page. Paste the job description instead."),
@@ -338,6 +477,19 @@ function App() {
     }
   };
 
+  // Tracker edits apply immediately and roll back if the save fails.
+  const updateSaved = async (record, changes) => {
+    const previous = saved.records.find((item) => item.id === record.id);
+    setSaved((current) => ({ ...current, records: current.records.map((item) => (item.id === record.id ? { ...item, ...changes } : item)) }));
+    try {
+      const updated = await updateSavedJob(record.id, changes);
+      if (updated) setSaved((current) => ({ ...current, records: current.records.map((item) => (item.id === record.id ? updated : item)) }));
+    } catch (updateError) {
+      setSaved((current) => ({ ...current, records: current.records.map((item) => (item.id === record.id ? previous : item)) }));
+      throw updateError;
+    }
+  };
+
   const removeSaved = async (record) => {
     setRemovingId(record.id);
     setError('');
@@ -360,6 +512,7 @@ function App() {
     setDocuments({ status: 'idle', records: [], error: '' });
     setMaterials({});
     setDocumentStyle(null);
+    setReview(EMPTY_REVIEW);
     setSnapshot(null);
     goTo('search');
   };
@@ -418,12 +571,16 @@ function App() {
         savedKeys={savedKeys}
         savingKey={savingKey}
         showSave={accountsEnabled}
+        canLoadMore={!snapshot && Boolean(searchContext?.hasMore)}
+        loadingMore={loading === 'more'}
+        loadMoreNotice={snapshot ? '' : loadMoreNotice}
+        onLoadMore={loadMoreJobs}
         onBack={() => goTo(snapshot ? 'history' : 'search')}
         onSelectJob={selectJob}
         onToggleSave={toggleSaveJob}
       />
     )}
-    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} resume={resume} setResume={(file) => { setResume(file); setError(''); }} onNewJob={() => { startNewCustomJob(); goTo('custom'); }} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} />}
+    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} resume={resume} setResume={(file) => { setResume(file); setError(''); }} onNewJob={() => { startNewCustomJob(); goTo('custom'); }} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} review={review} onCheckChanges={checkResumeChanges} onFixChange={fixResumeChange} onDismissChange={dismissResumeChange} onSaveResume={saveEditedResume} />}
     {page === 'auth' && (
       <AuthPage
         key={authMode}
@@ -443,6 +600,7 @@ function App() {
           onBack={() => goTo('search')}
           onTailor={(job) => selectJob(job, 'saved')}
           onRemove={removeSaved}
+          onUpdate={updateSaved}
         />
       : <AuthPage key={authMode} mode={authMode} reason="Your saved jobs live in your CareerAtlas account." onChangeMode={setAuthMode} onAuthenticated={() => goTo('saved')} onGuest={goHome} />)}
     {page === 'history' && (user

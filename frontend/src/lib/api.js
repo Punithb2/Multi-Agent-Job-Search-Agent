@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { supabase } from './supabaseClient';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -17,6 +18,17 @@ export const api = axios.create({
   timeout: REQUEST_TIMEOUT_MS,
 });
 
+// Send the signed-in user's Supabase access token, so the backend can confirm who
+// is generating documents. Supabase refreshes the token itself; this reads the
+// current one per request.
+api.interceptors.request.use(async (config) => {
+  if (!supabase) return config;
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
 /** Turn an axios failure into something worth showing a person. */
 export function describeRequestError(error, fallback) {
   if (error.code === 'ECONNABORTED') {
@@ -25,7 +37,17 @@ export function describeRequestError(error, fallback) {
   if (!error.response) {
     return 'We could not reach the CareerAtlas server. Check your connection and try again.';
   }
-  return error.response?.data?.detail || fallback;
+  const detail = error.response?.data?.detail;
+  // FastAPI reports body validation problems as a list of objects.
+  if (typeof detail === 'string') return detail;
+  if (error.response.status === 401) return 'Sign in to use this feature.';
+  if (error.response.status === 429) return 'You have reached the usage limit for now. Please try again a little later.';
+  return fallback;
+}
+
+/** True when the backend refused a request because the user is not signed in. */
+export function isSignInError(error) {
+  return error?.response?.status === 401;
 }
 
 /**

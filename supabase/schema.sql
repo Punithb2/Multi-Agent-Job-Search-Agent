@@ -167,3 +167,31 @@ create policy "job_materials_delete_own" on public.job_materials
 -- Styling read from the resume used for this job (fonts, sizes, colours), so a
 -- saved resume or cover letter downloads in the candidate's own style later.
 alter table public.job_materials add column if not exists document_style jsonb;
+
+-- ---------------------------------------------------------------------------
+-- 7. Application tracker on saved jobs
+-- ---------------------------------------------------------------------------
+alter table public.saved_jobs add column if not exists status text not null default 'saved';
+alter table public.saved_jobs add column if not exists notes text;
+alter table public.saved_jobs add column if not exists status_updated_at timestamptz;
+
+do $$
+begin
+  alter table public.saved_jobs
+    add constraint saved_jobs_status_check
+    check (status in ('saved', 'applied', 'interview', 'offer', 'rejected'));
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table public.saved_jobs
+    add constraint saved_jobs_notes_length_check
+    check (notes is null or char_length(notes) <= 2000);
+exception when duplicate_object then null;
+end $$;
+
+-- Tracking progress means editing a saved job, so owners may now update their rows.
+drop policy if exists "saved_jobs_update_own" on public.saved_jobs;
+create policy "saved_jobs_update_own" on public.saved_jobs
+  for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);

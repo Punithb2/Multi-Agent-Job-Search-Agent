@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
 
+from security import DailyBudgetExceeded, gemini_budget, jsearch_budget
 from state import AgentState
 
 load_dotenv()
@@ -61,6 +62,9 @@ def _is_daily_quota_error(error):
 
 def invoke_with_retry(chain, prompt, max_retries=2, base_delay=8, **invoke_kwargs):
     for attempt in range(max_retries):
+        # Every attempt is a billable Gemini request, so each one draws on the
+        # shared daily budget. Raises DailyBudgetExceeded once it is spent.
+        gemini_budget.spend()
         try:
             return chain.invoke(prompt, **invoke_kwargs)
         except Exception as error:
@@ -390,9 +394,15 @@ def job_researcher_node(state: AgentState):
     if job_requirements:
         base_params["job_requirements"] = job_requirements
 
+    page = max(1, int(state.get("page") or 1))
+    if page > 1:
+        base_params["page"] = str(page)
+
     if experience_level == "entry":
+        terms = ENTRY_LEVEL_TERMS.get(country, DEFAULT_ENTRY_LEVEL_TERMS)
         # Try the local phrasing first; spend a second request only if it is thin.
-        queries = [f"{term} {role} jobs in {search_location}" for term in ENTRY_LEVEL_TERMS.get(country, DEFAULT_ENTRY_LEVEL_TERMS)]
+        # Later pages continue the first phrasing only, one request each.
+        queries = [f"{term} {role} jobs in {search_location}" for term in (terms if page == 1 else terms[:1])]
     else:
         queries = [f"{role} jobs in {search_location}"]
 
@@ -400,7 +410,13 @@ def job_researcher_node(state: AgentState):
     for index, query in enumerate(queries):
         if index > 0 and len(jobs) >= ENTRY_LEVEL_MIN_RESULTS:
             break
-        for job in _search_jsearch({**base_params, "query": query}):
+        try:
+            found = _search_jsearch({**base_params, "query": query})
+        except (DailyBudgetExceeded, JobSearchUnavailable):
+            if index == 0:
+                raise
+            break  # keep what the first request found rather than failing the search
+        for job in found:
             identity = job["job_id"] or job["url"] or f"{job['title']}:{job['company']}"
             if identity not in seen:
                 seen.add(identity)
@@ -410,8 +426,17 @@ def job_researcher_node(state: AgentState):
     return {"job_descriptions": jobs, "research_attempted": True}
 
 
+class JobSearchUnavailable(Exception):
+    """JSearch failed or timed out, as opposed to returning no jobs."""
+
+
 def _search_jsearch(params: dict[str, str]) -> list[dict[str, Any]]:
-    """One JSearch request, normalised to the job shape the app uses."""
+    """One JSearch request, normalised to the job shape the app uses.
+
+    Raises JobSearchUnavailable when the request itself fails, so callers can tell
+    "try again" apart from "there are no more jobs".
+    """
+    jsearch_budget.spend()  # raises DailyBudgetExceeded once today's share is used
     try:
         response = requests.get(
             f"https://{JSEARCH_HOST}/search-v2",
@@ -421,9 +446,9 @@ def _search_jsearch(params: dict[str, str]) -> list[dict[str, Any]]:
         )
         response.raise_for_status()
         data = response.json()
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         print(f"❌ JSearch request failed: {e}")
-        return []
+        raise JobSearchUnavailable(str(e))
 
     result_data = data.get("data", [])
     job_results = result_data.get("jobs", result_data.get("results", [])) if isinstance(result_data, dict) else result_data

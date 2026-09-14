@@ -10,6 +10,7 @@ class AgentState(TypedDict):
     remote_only: bool
     experience_level: str
     date_posted: str
+    page: int
     job_descriptions: List[dict]
     selected_job: dict
     research_attempted: bool

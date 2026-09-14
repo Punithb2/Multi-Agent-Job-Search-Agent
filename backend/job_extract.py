@@ -334,6 +334,7 @@ def _job_from_page_text(text: str, page_title: str, meta: dict) -> dict:
     # Imported here so the URL checks and parsers stay usable without loading
     # the AI stack (keeps unit checks light).
     from agents import JSON_GENERATION_CONFIG, _response_json, invoke_with_retry, llm
+    from security import DailyBudgetExceeded
 
     prompt = f"""
 You extract one job posting from the text of a web page.
@@ -357,6 +358,8 @@ Page text:
 """
     try:
         data = _response_json(invoke_with_retry(llm, prompt, generation_config=JSON_GENERATION_CONFIG))
+    except DailyBudgetExceeded:
+        raise  # a quota message, not "unreadable page"
     except Exception as error:
         print(f"AI job extraction failed: {error}")
         raise ExtractionError(UNREADABLE)

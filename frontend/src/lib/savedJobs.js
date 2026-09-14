@@ -14,16 +14,51 @@ export function jobKey(job) {
   return job?.job_id || job?.url || '';
 }
 
+/** Application stages, in order, for the tracker on the saved jobs page. */
+export const APPLICATION_STATUSES = [
+  { id: 'saved', label: 'Saved' },
+  { id: 'applied', label: 'Applied' },
+  { id: 'interview', label: 'Interview' },
+  { id: 'offer', label: 'Offer' },
+  { id: 'rejected', label: 'Not selected' },
+];
+
+export const MAX_NOTES_LENGTH = 2000;
+
+const BASE_COLUMNS = 'id, job_id, job_json, created_at';
+const TRACKER_COLUMNS = `${BASE_COLUMNS}, status, notes, status_updated_at`;
+
+// Postgres "undefined column": a database that hasn't re-run schema.sql for the
+// tracker. Saved jobs still load and save there, just without statuses and notes.
+const UNDEFINED_COLUMN = '42703';
+
+const withTrackerDefaults = (row) => ({ status: 'saved', status_updated_at: null, ...row, notes: row?.notes || '' });
+
 /** Saved rows for the signed-in user, newest first. */
 export async function fetchSavedJobs() {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('saved_jobs')
-    .select('id, job_id, job_json, created_at')
-    .order('created_at', { ascending: false })
-    .limit(SAVED_LIMIT);
+  const query = (columns) => supabase.from('saved_jobs').select(columns).order('created_at', { ascending: false }).limit(SAVED_LIMIT);
+  let { data, error } = await query(TRACKER_COLUMNS);
+  if (error?.code === UNDEFINED_COLUMN) ({ data, error } = await query(BASE_COLUMNS));
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data || []).map(withTrackerDefaults);
+}
+
+/** Update a saved job's application status and/or notes. RLS limits this to the owner. */
+export async function updateSavedJob(id, changes) {
+  if (!supabase) return null;
+  const update = {};
+  if (changes.status !== undefined) {
+    if (!APPLICATION_STATUSES.some((status) => status.id === changes.status)) throw new Error('Unknown application status.');
+    update.status = changes.status;
+    update.status_updated_at = new Date().toISOString();
+  }
+  if (changes.notes !== undefined) update.notes = String(changes.notes).slice(0, MAX_NOTES_LENGTH);
+
+  const { data, error } = await supabase.from('saved_jobs').update(update).eq('id', id).select(TRACKER_COLUMNS).single();
+  if (error?.code === UNDEFINED_COLUMN) throw new Error('Application tracking needs a database update. Re-run supabase/schema.sql.');
+  if (error) throw new Error(error.message);
+  return withTrackerDefaults(data);
 }
 
 /**
@@ -42,14 +77,15 @@ export async function saveJob(job) {
   const { data, error } = await supabase
     .from('saved_jobs')
     .insert({ user_id: userId, job_id: jobKey(job) || null, job_json: job })
-    .select('id, job_id, job_json, created_at')
+    .select(BASE_COLUMNS)
     .single();
 
   if (error) {
     if (error.code === DUPLICATE_CODE) return { duplicate: true, record: null };
     throw new Error(error.message);
   }
-  return { duplicate: false, record: data };
+  // A new save always starts at the "Saved" stage (the column default).
+  return { duplicate: false, record: withTrackerDefaults(data) };
 }
 
 /** Remove one saved job. RLS restricts this to the owner's rows. */

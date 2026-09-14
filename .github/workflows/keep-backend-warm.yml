@@ -1,0 +1,35 @@
+# Keeps the free Render backend from spinning down, so visitors don't wait about a
+# minute for the first search.
+#
+# Render's free tier sleeps after ~15 minutes without traffic and allows 750
+# instance-hours a month. Pinging around the clock would use ~744 of those, so this
+# runs only 01:00-18:59 UTC (06:30-00:29 IST), about 560 hours a month.
+#
+# Scheduled workflows are free and unlimited on public repositories. GitHub may
+# delay scheduled runs at busy times, and pauses them after 60 days without repo
+# activity (re-enable from the Actions tab).
+name: Keep backend warm
+
+on:
+  schedule:
+    - cron: "*/10 1-18 * * *"
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /health
+        env:
+          # Override with a repository variable if the backend URL changes.
+          HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL || 'https://careeratlas-api.onrender.com/health' }}
+        run: |
+          # A sleeping instance can take ~60s to start, so allow up to 90s.
+          status=$(curl --silent --output /dev/null --write-out "%{http_code}" --max-time 90 "$HEALTH_URL" || true)
+          echo "GET $HEALTH_URL -> $status"
+          if [ "$status" != "200" ]; then
+            echo "::warning::Backend health check returned '$status'"
+          fi

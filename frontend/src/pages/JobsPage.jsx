@@ -1,7 +1,7 @@
 import { ErrorMessage, Icon } from '../components/ui';
 import { jobKey } from '../lib/savedJobs';
 
-export default function JobsPage({ jobs, role, error, snapshot, savedKeys, savingKey, showSave, onBack, onSelectJob, onToggleSave }) {
+export default function JobsPage({ jobs, role, error, snapshot, savedKeys, savingKey, showSave, canLoadMore = false, loadingMore = false, loadMoreNotice = '', onLoadMore, onBack, onSelectJob, onToggleSave }) {
   const savedOn = snapshot?.createdAt
     ? new Date(snapshot.createdAt).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
     : '';
@@ -85,6 +85,16 @@ export default function JobsPage({ jobs, role, error, snapshot, savedKeys, savin
           );
         })}
       </div>
+      {(canLoadMore || loadMoreNotice) && (
+        <div className="load-more">
+          {loadMoreNotice && <p className="load-more-notice" role="status" aria-live="polite">{loadMoreNotice}</p>}
+          {canLoadMore && (
+            <button type="button" className="secondary-button load-more-button" onClick={onLoadMore} disabled={loadingMore}>
+              {loadingMore ? <><span className="spinner" /> Finding more roles...</> : <>Load more jobs <Icon name="arrow" /></>}
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }
