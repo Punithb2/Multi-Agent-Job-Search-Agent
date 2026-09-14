@@ -144,11 +144,6 @@ email/password auth, and copy the two values into `frontend/.env`.
 Leave the Supabase variables blank and the app still runs — just without
 accounts, saved jobs, or history.
 
-### Developing without spending API credits
-
-Set `MOCK_MODE=true` in `backend/.env` to get sample listings and sample
-analyses without calling JSearch or Gemini. Useful for UI work.
-
 ---
 
 ## Environment variables
@@ -160,7 +155,7 @@ analyses without calling JSearch or Gemini. Useful for UI work.
 | `GEMINI_API_KEY` | yes | Google Gemini key. `GOOGLE_API_KEY` also works. |
 | `RAPIDAPI_KEY` | yes | JSearch key for live listings. |
 | `FRONTEND_ORIGINS` | production | Comma-separated frontend URLs allowed by CORS. Leave blank locally. |
-| `MOCK_MODE` | no | `true` returns sample data without calling any API. |
+| `GEMINI_MODEL` | no | Gemini model to use. Defaults to `gemini-3.5-flash-lite`. |
 | `PORT` | no | Port to listen on. Hosts set this automatically. |
 
 ### `frontend/.env` — bundled into the browser, **public**
@@ -206,7 +201,7 @@ frontend, instead of debugging two unknowns at once.
    - `PYTHON_VERSION` = `3.12.7`
    - `GEMINI_API_KEY` = your key
    - `RAPIDAPI_KEY` = your key
-   - `MOCK_MODE` = `false`
+   - `PYTHONUNBUFFERED` = `1` (so application logs appear in the Render dashboard)
    - (`FRONTEND_ORIGINS` comes in step 3, once the frontend URL exists)
 5. Deploy, then open `https://<your-service>.onrender.com/health`. You should see
    `{"status":"ok","jsearch_configured":true,"gemini_configured":true}`. If either
@@ -280,7 +275,6 @@ backend/
   state.py          shared agent state
   job_extract.py    reads a job posting from a pasted link, with SSRF protection
   resume_style.py   reads fonts, sizes, colours, and layout from an uploaded resume PDF
-  mock_data.py      sample data for MOCK_MODE
 frontend/
   src/
     pages/          Search, Jobs, Tailoring, CustomJob, Auth, SavedJobs, History

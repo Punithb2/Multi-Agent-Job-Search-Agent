@@ -16,7 +16,6 @@ from agents import (
 )
 import os
 import re
-from mock_data import get_mock_analysis, get_mock_extracted_job, get_mock_jobs
 from job_extract import UNREADABLE, ExtractionError, extract_job_from_url
 from resume_style import extract_resume_style
 
@@ -47,9 +46,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- mock mode flag ---
-MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
-
 MAX_JOB_JSON_CHARS = 60_000
 MAX_DESCRIPTION_CHARS = 15_000
 
@@ -71,7 +67,6 @@ def health_check():
     """
     return {
         "status": "ok",
-        "mock_mode": MOCK_MODE,
         "jsearch_configured": bool(os.getenv("RAPIDAPI_KEY")),
         "gemini_configured": bool(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")),
     }
@@ -149,8 +144,6 @@ async def start_job_search(
         # other, so run them at the same time instead of one after the other.
         # Both are blocking network calls, so each goes to a worker thread.
         async def build_candidate_profile():
-            if MOCK_MODE:
-                return _fallback_candidate_profile(target_role), "fallback"
             try:
                 profile = await asyncio.to_thread(extract_candidate_profile, extracted_text, target_role)
                 return profile, "ai"
@@ -159,15 +152,6 @@ async def start_job_search(
                 return _fallback_candidate_profile(target_role), "fallback"
 
         async def find_jobs():
-            if MOCK_MODE:
-                print("MOCK MODE: Returning sample job listings")
-                return get_mock_jobs(
-                    target_role=target_role,
-                    location=location,
-                    remote_only=remote_only,
-                    experience_level=experience_level,
-                    date_posted=date_posted,
-                )
             result = await asyncio.to_thread(job_researcher_node, initial_state)
             return result.get("job_descriptions", [])
 
@@ -188,7 +172,7 @@ async def start_job_search(
             jobs,
             candidate_profile,
             target_role,
-            not MOCK_MODE and profile_mode == "ai",
+            profile_mode == "ai",
         )
         print(f"[timing] ranking ({ranking_mode}): {time.perf_counter() - ranking_started:.1f}s")
 
@@ -258,9 +242,6 @@ async def analyze_selected_job(
             print(f"Resume style could not be read: {style_error}")
 
     state = {"base_resume": resume_text, "selected_job": selected_job}
-    if MOCK_MODE:
-        result = get_mock_analysis(action, selected_job)
-        return {"status": "success", "action": action, "content": result, "style": style}
 
     # Each click runs only its requested agent. Resume and letter can still be
     # generated independently, using the original resume and selected job.
@@ -273,8 +254,6 @@ async def analyze_selected_job(
 @app.post("/api/jobs/extract")
 async def extract_job_details(url: str = Form(..., max_length=2048)):
     """Read a job posting from a link the user found on another site."""
-    if MOCK_MODE:
-        return {"status": "success", "job": get_mock_extracted_job(url)}
     try:
         job = await asyncio.to_thread(extract_job_from_url, url)
     except ExtractionError as error:
