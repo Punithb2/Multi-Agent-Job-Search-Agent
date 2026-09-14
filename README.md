@@ -6,7 +6,7 @@ Upload a PDF resume, pick a target role, and CareerAtlas finds live job listings
 ranks them against what your resume actually shows, and generates a skill-gap
 analysis, a tailored resume, and a cover letter for whichever job you choose.
 
-> **Live demo:** _add your Vercel URL here after deploying_
+> **Live demo:** _multi-agent-job-search-agent.vercel.app_
 
 ![CareerAtlas search screen](docs/screenshots/search.png)
 <!-- Screenshots to add:
