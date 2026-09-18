@@ -4,9 +4,10 @@
 -- Run this once in the Supabase dashboard: SQL Editor -> New query -> Run.
 -- The script is idempotent, so it is safe to re-run after edits.
 --
--- Privacy note: CareerAtlas never stores resume PDFs or raw extracted resume
--- text. Only search inputs, ranked job snapshots, and saved job snapshots are
--- persisted, and every row is owned by exactly one authenticated user.
+-- Privacy note: extracted resume text is never stored. A signed-in user's resume
+-- PDF is kept only in the private "resumes" bucket (section 9), in a folder only
+-- that user can reach, so they do not have to upload it on every page. Every row
+-- here is owned by exactly one authenticated user.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
@@ -195,3 +196,79 @@ end $$;
 drop policy if exists "saved_jobs_update_own" on public.saved_jobs;
 create policy "saved_jobs_update_own" on public.saved_jobs
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- 8. Profile details, stored resume, and cold emails
+-- ---------------------------------------------------------------------------
+-- Filled in once at sign up, then reused on every page instead of asking for the
+-- same details and the same resume again.
+alter table public.profiles add column if not exists full_name text;
+alter table public.profiles add column if not exists phone text;
+alter table public.profiles add column if not exists location text;
+alter table public.profiles add column if not exists target_role text;
+alter table public.profiles add column if not exists experience_level text;
+alter table public.profiles add column if not exists linkedin_url text;
+alter table public.profiles add column if not exists portfolio_url text;
+-- Where the resume PDF sits in the private "resumes" bucket, plus its own name.
+alter table public.profiles add column if not exists resume_path text;
+alter table public.profiles add column if not exists resume_name text;
+alter table public.profiles add column if not exists resume_updated_at timestamptz;
+alter table public.profiles add column if not exists onboarded_at timestamptz;
+alter table public.profiles add column if not exists updated_at timestamptz;
+
+do $$
+begin
+  alter table public.profiles
+    add constraint profiles_experience_level_check
+    check (experience_level is null or experience_level in ('student', 'fresher', 'experienced'));
+exception when duplicate_object then null;
+end $$;
+
+-- The cold email draft, stored beside the other documents for the same job.
+alter table public.job_materials add column if not exists cold_email text;
+
+-- ---------------------------------------------------------------------------
+-- 9. Private storage bucket for resumes
+-- ---------------------------------------------------------------------------
+-- Every file lives under a folder named after its owner's user id, and the
+-- policies below let each signed-in user reach only that folder. The bucket is
+-- private, so files are read through short-lived signed links, never a public URL.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('resumes', 'resumes', false, 5242880, array['application/pdf'])
+on conflict (id) do update
+  set public = false,
+      file_size_limit = 5242880,
+      allowed_mime_types = array['application/pdf'];
+
+do $$
+declare
+  action text;
+begin
+  foreach action in array array['select', 'insert', 'update', 'delete'] loop
+    execute format('drop policy if exists "resumes_%s_own" on storage.objects', action);
+  end loop;
+
+  execute $policy$
+    create policy "resumes_select_own" on storage.objects
+      for select to authenticated
+      using (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+  $policy$;
+  execute $policy$
+    create policy "resumes_insert_own" on storage.objects
+      for insert to authenticated
+      with check (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+  $policy$;
+  execute $policy$
+    create policy "resumes_update_own" on storage.objects
+      for update to authenticated
+      using (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+      with check (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+  $policy$;
+  execute $policy$
+    create policy "resumes_delete_own" on storage.objects
+      for delete to authenticated
+      using (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+  $policy$;
+exception when insufficient_privilege then
+  raise notice 'Storage policies need the dashboard: Storage -> resumes -> Policies.';
+end $$;

@@ -1,7 +1,9 @@
 # Supabase setup (free tier)
 
-CareerAtlas uses Supabase only for **authentication, saved jobs, and search history**.
-Resume PDFs and extracted resume text are never uploaded or stored.
+CareerAtlas uses Supabase for **authentication, profiles, saved jobs, search
+history, and generated documents**. Extracted resume text is never stored. A
+signed-in user's resume PDF is kept in a private `resumes` bucket, in a folder
+only that user can open, so they do not have to upload it on every page.
 
 ## 1. Create the project
 
@@ -18,10 +20,19 @@ Resume PDFs and extracted resume text are never uploaded or stored.
    policies, and adds a trigger that creates a `profiles` row automatically on
    sign up. It is safe to run again after any edit.
 
+   It also creates the private `resumes` storage bucket and its owner-only
+   policies.
+
    **Upgrading an existing project?** Re-run the whole script. It only adds what
-   is missing: the tailoring Studio needs the `job_materials` table, and the
+   is missing: the tailoring Studio needs the `job_materials` table, the
    application tracker needs the `status` and `notes` columns on `saved_jobs`
-   along with its update policy.
+   with its update policy, and profiles plus cold emails need the columns and the
+   `resumes` bucket added in sections 8 and 9.
+
+   If the script prints `Storage policies need the dashboard`, your SQL role was
+   not allowed to create them. Go to **Storage -> resumes -> Policies** and add
+   four policies for `authenticated` (select, insert, update, delete), each using
+   `bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text`.
 
 Verify in **Table Editor** that each table shows the green **RLS enabled** badge.
 

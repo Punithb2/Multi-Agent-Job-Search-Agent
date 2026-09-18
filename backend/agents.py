@@ -625,3 +625,47 @@ Target job:
 """
     response = invoke_with_retry(llm, prompt)
     return {"cover_letter": _response_text(response.content)}
+
+
+def cold_email_node(state: AgentState):
+    print("📧 Cold Email Agent: Drafting...")
+    target_job = state.get("selected_job") or {"title": "Unknown", "company": "Unknown", "description": ""}
+
+    prompt = f"""
+Write a short cold email the candidate can send to a recruiter or hiring manager
+about this job, based on the candidate's resume.
+
+Rules:
+- Use only facts from the resume. Never invent experience, skills, numbers, or achievements.
+- Keep the whole email under 180 words. Recruiters skim.
+- Plain and direct. No flattery, no "I hope this email finds you well", no buzzwords.
+- Name two or three things from the resume that fit this job, and say the resume is attached.
+- Never write placeholders like "[Your Name]" or "[Company]". Leave out anything the
+  resume does not show.
+- Do not mention salary, notice period, or visa status.
+
+Format (plain text, exactly this structure):
+Subject: one line, at most 70 characters, naming the role
+
+Dear Hiring Team,
+
+First paragraph: who the candidate is and which role this is about.
+
+Second paragraph: the strongest match between the resume and this job.
+
+Closing line asking for a short conversation, mentioning the attached resume.
+
+Candidate Full Name
+contact details on one line, separated by " | "
+
+Address the greeting to a named person or team only if the job description names one.
+Output ONLY the email: no notes or text before or after.
+
+Resume:
+{state.get('tailored_resume') or state['base_resume']}
+
+Target job:
+{_job_for_prompt(target_job)}
+"""
+    response = invoke_with_retry(llm, prompt)
+    return {"cold_email": _response_text(response.content)}

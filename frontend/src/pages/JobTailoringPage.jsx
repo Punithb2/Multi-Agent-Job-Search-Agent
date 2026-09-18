@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { ErrorMessage, Icon } from '../components/ui';
 import ResumePicker from '../components/ResumePicker';
 import ResumeReview, { ResumeEditor } from '../components/ResumeReview';
+import ColdEmailPanel from '../components/ColdEmailPanel';
 import { downloadMaterialDocx } from '../lib/docx';
 import { downloadMaterialPdf } from '../lib/pdf';
 import { normalizeMarkdown } from '../lib/pdfMarkdown';
@@ -11,10 +12,12 @@ const materialOptions = [
   { id: 'skill_gap', title: 'Skill gap', text: 'See the strongest gaps, risks, and project suggestions for this role.' },
   { id: 'resume_tailor', title: 'Tailored resume', text: 'Generate a tighter resume draft focused on this exact opening.' },
   { id: 'cover_letter', title: 'Cover letter', text: 'Draft a role-specific letter without leaving this workspace.' },
+  { id: 'cold_email', title: 'Cold email', text: 'Write a short email to a recruiter, ready to send from your Gmail.' },
 ];
 
 export default function JobTailoringPage({
   job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', resume, setResume,
+  resumeFromProfile = false, onManageResume, recipient = '', onChangeRecipient,
   onBack, onGenerate, onNewJob, review, onCheckChanges, onFixChange, onDismissChange, onSaveResume,
 }) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
@@ -73,6 +76,7 @@ export default function JobTailoringPage({
   const activeContent = materials[activeOption.id];
   const completedCount = materialOptions.filter((item) => materials[item.id]).length;
   const showResumeTabs = activeOption.id === 'resume_tailor' && Boolean(activeContent) && loading !== 'resume_tailor';
+  const isColdEmail = activeOption.id === 'cold_email';
   const flaggedCount = review.changes?.items.filter((item) => item.new_terms?.length).length || 0;
 
   return (
@@ -103,7 +107,7 @@ export default function JobTailoringPage({
           <p>Switch between outputs without stacking long documents on the page. Generate only what you need, then review it in a focused reading area.</p>
           <div className="tailoring-stats">
             <div>
-              <strong>{completedCount}/3</strong>
+              <strong>{completedCount}/{materialOptions.length}</strong>
               <span>materials ready</span>
             </div>
             <div>
@@ -127,7 +131,7 @@ export default function JobTailoringPage({
           <strong>{resume ? 'Resume attached' : 'Attach your resume'}</strong>
           <span>{resume ? 'Every document you generate here is tailored from this file.' : 'Your documents are generated from this resume, so attach it before generating.'}</span>
         </div>
-        <ResumePicker id="studio-resume-upload" resume={resume} onChange={attachResume} readyText="Used for every document here" error={resumeError} />
+        <ResumePicker id="studio-resume-upload" resume={resume} onChange={attachResume} fromProfile={resumeFromProfile} onManage={onManageResume} readyText="Used for every document here" error={resumeError} />
       </div>
 
       <section className="tailoring-layout">
@@ -167,7 +171,7 @@ export default function JobTailoringPage({
               <p>{activeOption.text}</p>
             </div>
             <div className="workspace-actions">
-              {activeContent && ['pdf', 'word'].map((format) => (
+              {activeContent && !isColdEmail && ['pdf', 'word'].map((format) => (
                 <button
                   key={format}
                   type="button"
@@ -222,6 +226,8 @@ export default function JobTailoringPage({
               />
             ) : showResumeTabs && resumeView === 'edit' ? (
               <ResumeEditor key={activeContent} value={activeContent} saving={review.saving} onSave={saveEdits} onCancel={() => setResumeView('document')} />
+            ) : isColdEmail && activeContent ? (
+              <ColdEmailPanel draft={activeContent} recipient={recipient} onChangeRecipient={onChangeRecipient} resumeName={resume?.name} />
             ) : activeContent ? (
               <div className="resume-document">
               {showResumeTabs && review.changes?.items.length > 0 && (

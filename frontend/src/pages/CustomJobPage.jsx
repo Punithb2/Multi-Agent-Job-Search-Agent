@@ -18,7 +18,7 @@ function looksLikeUrl(value) {
  * Bring-your-own-job intake: fetch a posting from a link or paste it, attach a
  * resume, then open it in the tailoring Studio like any other job.
  */
-export default function CustomJobPage({ draft, onChangeDraft, resume, setResume, fetching, fetchError, fetchNotice, onFetch, onContinue, onStartOver }) {
+export default function CustomJobPage({ draft, onChangeDraft, resume, setResume, resumeFromProfile = false, onManageResume, fetching, fetchError, fetchNotice, onFetch, onContinue, onStartOver }) {
   const [errors, setErrors] = useState({});
   const update = (key, value) => {
     onChangeDraft({ ...draft, [key]: value });
@@ -143,6 +143,8 @@ export default function CustomJobPage({ draft, onChangeDraft, resume, setResume,
               id="custom-resume-upload"
               resume={resume}
               onChange={(file) => { setResume(file); setErrors((current) => ({ ...current, resume: '' })); }}
+              fromProfile={resumeFromProfile}
+              onManage={onManageResume}
               readyText="Ready to tailor"
               error={errors.resume}
             />

@@ -2,12 +2,19 @@ import { supabase } from './supabaseClient';
 import { jobKey } from './savedJobs';
 
 /** The document columns on job_materials, matching the Studio's action ids. */
-export const MATERIAL_ACTIONS = ['skill_gap', 'resume_tailor', 'cover_letter'];
+export const MATERIAL_ACTIONS = ['skill_gap', 'resume_tailor', 'cover_letter', 'cold_email'];
 
-// Postgres "undefined column". document_style arrived after job_materials, so a
-// database that hasn't re-run schema.sql lacks it; documents must still load and
-// save there, just without the stored styling.
+// Postgres "undefined column". document_style and cold_email arrived after
+// job_materials, so a database that has not re-run schema.sql lacks them.
+// Documents must still load there, just without the newer columns.
 const UNDEFINED_COLUMN = '42703';
+
+/** Column sets to try in turn, newest schema first. */
+const COLUMN_SETS = [
+  `${MATERIAL_ACTIONS.join(', ')}, document_style`,
+  'skill_gap, resume_tailor, cover_letter, document_style',
+  'skill_gap, resume_tailor, cover_letter',
+];
 
 /** Newest documents shown in the History tab. */
 const DOCUMENTS_LIMIT = 50;
@@ -34,8 +41,12 @@ function pickMaterials(row) {
 export async function fetchMaterialsForJob(key) {
   if (!supabase || !key) return { materials: {}, style: null };
   const query = (columns) => supabase.from('job_materials').select(columns).eq('job_key', key).maybeSingle();
-  let { data, error } = await query(`${MATERIAL_ACTIONS.join(', ')}, document_style`);
-  if (error?.code === UNDEFINED_COLUMN) ({ data, error } = await query(MATERIAL_ACTIONS.join(', ')));
+  let data = null;
+  let error = null;
+  for (const columns of COLUMN_SETS) {
+    ({ data, error } = await query(columns));
+    if (error?.code !== UNDEFINED_COLUMN) break;
+  }
   if (error) throw new Error(error.message);
   return { materials: pickMaterials(data), style: data?.document_style || null };
 }
@@ -74,11 +85,17 @@ export async function saveMaterial(job, action, content, style = null) {
 /** Every job with generated documents, most recently updated first. */
 export async function fetchDocuments() {
   if (!supabase) return [];
-  const { data, error } = await supabase
+  const list = (columns) => supabase
     .from('job_materials')
-    .select(`id, job_key, job_json, updated_at, ${MATERIAL_ACTIONS.join(', ')}`)
+    .select(`id, job_key, job_json, updated_at, ${columns}`)
     .order('updated_at', { ascending: false })
     .limit(DOCUMENTS_LIMIT);
+  let data = null;
+  let error = null;
+  for (const columns of [MATERIAL_ACTIONS.join(', '), 'skill_gap, resume_tailor, cover_letter']) {
+    ({ data, error } = await list(columns));
+    if (error?.code !== UNDEFINED_COLUMN) break;
+  }
   if (error) throw new Error(error.message);
   return (data || []).map((row) => ({ ...row, materials: pickMaterials(row) }));
 }

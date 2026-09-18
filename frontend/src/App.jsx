@@ -6,6 +6,7 @@ import AuthPage from './pages/AuthPage';
 import SavedJobsPage from './pages/SavedJobsPage';
 import HistoryPage from './pages/HistoryPage';
 import CustomJobPage from './pages/CustomJobPage';
+import ProfilePage from './pages/ProfilePage';
 import AccountMenu from './components/AccountMenu';
 import SignInPrompt from './components/SignInPrompt';
 import { Icon } from './components/ui';
@@ -15,10 +16,12 @@ import { fetchSavedJobs, jobKey, removeSavedJob, saveJob, updateSavedJob } from 
 import { api, describeRequestError, isSignInError, wakeBackend } from './lib/api';
 import { deleteDocuments, fetchDocuments, fetchMaterialsForJob, saveMaterial } from './lib/materials';
 import { applyFix, changeKey } from './lib/resumeReview';
+import { downloadResume, fetchProfile, needsOnboarding, removeResume, saveProfile, uploadResume } from './lib/profile';
 import './App.css';
 
 const EMPTY_CUSTOM_DRAFT = { url: '', title: '', company: '', location: '', description: '' };
 const EMPTY_REVIEW = { changes: null, checking: false, saving: false, error: '' };
+const EMPTY_PROFILE_STATE = { saving: false, uploading: false, error: '', notice: '' };
 
 function App() {
   const { user, loadingSession, accountsEnabled, signOut } = useAuth();
@@ -64,9 +67,23 @@ function App() {
   // The job the Studio is showing right now. Async loads and generations check it
   // before writing, so a slow response for one job never lands on another.
   const activeJobKey = useRef('');
+  // Mirrors the attached resume so the profile can fill it in only when no file
+  // has been picked, without re-running that load on every change.
+  const resumeRef = useRef(null);
   // Line-by-line comparison of the tailored resume with the uploaded one. It quotes
   // the original resume, so it lives only in this session.
   const [review, setReview] = useState(EMPTY_REVIEW);
+  // The signed-in user's details and stored resume, loaded once per session so no
+  // page has to ask for the same PDF again.
+  const [profile, setProfile] = useState(null);
+  const [profileState, setProfileState] = useState(EMPTY_PROFILE_STATE);
+  // True on the first visit after signing up, when the profile form is a welcome.
+  const [welcomeProfile, setWelcomeProfile] = useState(false);
+  // Set when the resume on screen came from the profile rather than a file the
+  // user picked for this session.
+  const [resumeFromProfile, setResumeFromProfile] = useState(false);
+  // An address printed in the posting, pre-filled into the cold email.
+  const [emailRecipient, setEmailRecipient] = useState('');
 
   // Nudge the backend awake on load, while the user is still filling the form.
   useEffect(() => {
@@ -80,6 +97,16 @@ function App() {
   }, []);
 
   const goTo = (next) => { setPage(next); setError(''); window.scrollTo(0, 0); };
+
+  /** A resume picked on any page: used for this session, not saved to the profile. */
+  const attachResume = (file) => {
+    resumeRef.current = file;
+    setResume(file);
+    setResumeFromProfile(false);
+    setError('');
+  };
+
+  const goToProfile = () => { setWelcomeProfile(false); setProfileState(EMPTY_PROFILE_STATE); goTo('profile'); };
 
   // Load the signed-in user's past searches whenever the history page opens.
   useEffect(() => {
@@ -112,6 +139,44 @@ function App() {
     load();
     return () => { active = false; };
   }, [page, historyTab, user]);
+
+  // Load the profile once per signed-in user, and with it the stored resume, so
+  // searching and generating documents work without attaching a file again.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const load = async () => {
+      let record = null;
+      try {
+        record = await fetchProfile();
+      } catch (profileError) {
+        console.warn('Could not load your profile:', profileError.message);
+        return;
+      }
+      if (!active || !record) return;
+      setProfile(record);
+      if (needsOnboarding(record)) {
+        setWelcomeProfile(true);
+        setPage('profile');
+      }
+      setRole((current) => current || record.target_role || '');
+      setFilters((current) => (current.location ? current : { ...current, location: record.location || '' }));
+      if (!record.resume_path || resumeRef.current) return;
+      try {
+        const file = await downloadResume(record);
+        // A file the user picked during this session is the one they meant to use.
+        if (active && file && !resumeRef.current) {
+          resumeRef.current = file;
+          setResume(file);
+          setResumeFromProfile(true);
+        }
+      } catch (resumeError) {
+        console.warn('Could not open the resume saved to your profile:', resumeError.message);
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, [user]);
 
   // Load the shortlist once per signed-in user so job cards can show saved state.
   useEffect(() => {
@@ -207,7 +272,7 @@ function App() {
   const selectJob = (job, origin = 'jobs') => {
     const key = jobKey(job);
     activeJobKey.current = key;
-    setSelectedJob(job); setMaterials({}); setDocumentStyle(null); setReview(EMPTY_REVIEW); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0);
+    setSelectedJob(job); setMaterials({}); setDocumentStyle(null); setReview(EMPTY_REVIEW); setEmailRecipient(''); setError(''); setStudioOrigin(origin); setPage('job'); window.scrollTo(0, 0);
     if (!user || !key) return;
     // Bring back anything generated for this job before, without regenerating it.
     fetchMaterialsForJob(key)
@@ -248,6 +313,7 @@ function App() {
         setMaterials((current) => ({ ...current, [action]: content }));
         if (style) setDocumentStyle(style);
         if (action === 'resume_tailor') setReview({ ...EMPTY_REVIEW, changes: response.data.changes || null });
+        if (action === 'cold_email') setEmailRecipient(response.data.recipient || '');
       }
       if (user && content) {
         saveMaterial(job, action, content, style)
@@ -324,6 +390,58 @@ function App() {
     // Hand edits make the earlier comparison stale, so compare the new text again.
     setReview(EMPTY_REVIEW);
     if (resume) checkResumeChanges(markdown);
+  };
+
+  const saveProfileDetails = async (changes) => {
+    setProfileState((current) => ({ ...current, saving: true, error: '', notice: '' }));
+    try {
+      const updated = await saveProfile({ ...changes, onboarded_at: profile?.onboarded_at || new Date().toISOString() });
+      if (updated) setProfile(updated);
+      setProfileState({ ...EMPTY_PROFILE_STATE, notice: 'Profile saved.' });
+      if (changes.target_role) setRole((current) => current || changes.target_role);
+      if (welcomeProfile) { setWelcomeProfile(false); goTo('search'); }
+    } catch (saveError) {
+      setProfileState((current) => ({ ...current, saving: false, error: `We could not save your profile. ${saveError.message}` }));
+    }
+  };
+
+  const uploadProfileResume = async (file) => {
+    setProfileState((current) => ({ ...current, uploading: true, error: '', notice: '' }));
+    try {
+      const updated = await uploadResume(file);
+      if (updated) setProfile(updated);
+      // The new file is the one every page should use from now on.
+      resumeRef.current = file;
+      setResume(file);
+      setResumeFromProfile(true);
+      setProfileState({ ...EMPTY_PROFILE_STATE, notice: 'Resume saved. Every page will use it now.' });
+    } catch (uploadError) {
+      setProfileState((current) => ({ ...current, uploading: false, error: `We could not save that resume. ${uploadError.message}` }));
+    }
+  };
+
+  const removeProfileResume = async () => {
+    setProfileState((current) => ({ ...current, uploading: true, error: '', notice: '' }));
+    try {
+      const updated = await removeResume(profile);
+      if (updated) setProfile(updated);
+      if (resumeFromProfile) { resumeRef.current = null; setResume(null); setResumeFromProfile(false); }
+      setProfileState({ ...EMPTY_PROFILE_STATE, notice: 'Resume removed.' });
+    } catch (removeError) {
+      setProfileState((current) => ({ ...current, uploading: false, error: `We could not remove that resume. ${removeError.message}` }));
+    }
+  };
+
+  // "Skip for now" still counts as seeing the welcome, so it does not reappear.
+  const skipOnboarding = async () => {
+    setWelcomeProfile(false);
+    goTo('search');
+    try {
+      const updated = await saveProfile({ onboarded_at: new Date().toISOString() });
+      if (updated) setProfile(updated);
+    } catch (skipError) {
+      console.warn('Could not mark the profile as seen:', skipError.message);
+    }
   };
 
   const openDocument = (record) => selectJob(record.job_json, 'history');
@@ -514,6 +632,12 @@ function App() {
     setDocumentStyle(null);
     setReview(EMPTY_REVIEW);
     setSnapshot(null);
+    setProfile(null);
+    setProfileState(EMPTY_PROFILE_STATE);
+    setWelcomeProfile(false);
+    setEmailRecipient('');
+    // The resume belonged to that account, so it goes with the sign-out.
+    if (resumeFromProfile) { resumeRef.current = null; setResume(null); setResumeFromProfile(false); }
     goTo('search');
   };
 
@@ -541,19 +665,37 @@ function App() {
       ) : loadingSession ? (
         <span className="account-placeholder" aria-hidden="true" />
       ) : user ? (
-        <AccountMenu user={user} busy={signingOut} onSignOut={handleSignOut} onGoToSaved={() => goTo('saved')} onGoToHistory={() => goTo('history')} />
+        <AccountMenu user={user} profile={profile} busy={signingOut} onSignOut={handleSignOut} onGoToProfile={goToProfile} onGoToSaved={() => goTo('saved')} onGoToHistory={() => goTo('history')} />
       ) : (
         <button className="nav-cta" onClick={() => openAuth('login')}><span className="nav-cta-label">Sign in</span><Icon name="arrow" /></button>
       )}
     </nav>
 
-    {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch: searchJobs, onBringYourOwnJob: () => goTo('custom') }} />}
+    {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume: attachResume, resumeFromProfile, onManageResume: goToProfile, filters, setFilters, error, loading, backendAsleep, onSearch: searchJobs, onBringYourOwnJob: () => goTo('custom') }} />}
+    {page === 'profile' && (user
+      ? <ProfilePage
+          profile={profile}
+          email={user.email}
+          welcome={welcomeProfile}
+          saving={profileState.saving}
+          uploading={profileState.uploading}
+          error={profileState.error}
+          notice={profileState.notice}
+          onSave={saveProfileDetails}
+          onUploadResume={uploadProfileResume}
+          onRemoveResume={removeProfileResume}
+          onSkip={skipOnboarding}
+          onDone={() => goTo('search')}
+        />
+      : <AuthPage mode="login" reason="Sign in to set up your profile." onChangeMode={setAuthMode} onAuthenticated={() => goTo('profile')} onGuest={goHome} />)}
     {page === 'custom' && (
       <CustomJobPage
         draft={customDraft}
         onChangeDraft={setCustomDraft}
         resume={resume}
-        setResume={setResume}
+        setResume={attachResume}
+        resumeFromProfile={resumeFromProfile}
+        onManageResume={goToProfile}
         fetching={customFetch.busy}
         fetchError={customFetch.error}
         fetchNotice={customFetch.notice}
@@ -580,7 +722,7 @@ function App() {
         onToggleSave={toggleSaveJob}
       />
     )}
-    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} resume={resume} setResume={(file) => { setResume(file); setError(''); }} onNewJob={() => { startNewCustomJob(); goTo('custom'); }} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} review={review} onCheckChanges={checkResumeChanges} onFixChange={fixResumeChange} onDismissChange={dismissResumeChange} onSaveResume={saveEditedResume} />}
+    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} resume={resume} setResume={attachResume} resumeFromProfile={resumeFromProfile} onManageResume={goToProfile} recipient={emailRecipient} onChangeRecipient={setEmailRecipient} onNewJob={() => { startNewCustomJob(); goTo('custom'); }} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} review={review} onCheckChanges={checkResumeChanges} onFixChange={fixResumeChange} onDismissChange={dismissResumeChange} onSaveResume={saveEditedResume} />}
     {page === 'auth' && (
       <AuthPage
         key={authMode}

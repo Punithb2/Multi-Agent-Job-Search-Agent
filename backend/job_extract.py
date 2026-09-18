@@ -405,3 +405,33 @@ def extract_job_from_url(url: str) -> dict:
     if len(job["description"]) < MIN_DESCRIPTION_CHARS:
         raise ExtractionError(UNREADABLE)
     return {**job, "url": url, "extraction": "ai"}
+
+
+# ---------------------------------------------------------------------------
+# Contact address for cold emails
+# ---------------------------------------------------------------------------
+EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+
+# Addresses that belong to the job board or to a machine, not to a person who
+# reads replies.
+IGNORED_EMAIL_PARTS = (
+    "no-reply", "noreply", "donotreply", "do-not-reply", "postmaster", "mailer-daemon",
+    "example.com", "domain.com", "yourcompany", "sentry.io", "wixpress.com", "@2x",
+)
+
+
+def find_contact_email(*texts: str) -> str:
+    """The first address in a job posting that a person is likely to read.
+
+    Cold emails only help if they reach a human, and a guessed address does not.
+    So this returns an address the posting itself printed, or nothing at all.
+    """
+    for text in texts:
+        for match in EMAIL_PATTERN.finditer(text or ""):
+            address = match.group(0).strip(".,;:)").lower()
+            if any(part in address for part in IGNORED_EMAIL_PARTS):
+                continue
+            if address.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
+                continue
+            return address
+    return ""

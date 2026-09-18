@@ -8,6 +8,7 @@ import io
 import json
 import time
 from agents import (
+    cold_email_node,
     JobSearchUnavailable,
     job_researcher_node,
     skill_gap_node,
@@ -19,7 +20,7 @@ from agents import (
 )
 import os
 import re
-from job_extract import UNREADABLE, ExtractionError, extract_job_from_url
+from job_extract import UNREADABLE, ExtractionError, extract_job_from_url, find_contact_email
 from resume_changes import compare_resumes
 from resume_style import extract_resume_style
 from security import (
@@ -312,7 +313,7 @@ async def analyze_selected_job(
     """Generate requested material for exactly one selected listing."""
     enforce_rate_limit("generate", user_id)
 
-    if action not in {"skill_gap", "resume_tailor", "cover_letter"}:
+    if action not in {"skill_gap", "resume_tailor", "cover_letter", "cold_email"}:
         raise HTTPException(status_code=400, detail="Unsupported analysis action.")
 
     # Jobs pasted in by the user are unbounded, and every node puts the whole job
@@ -346,18 +347,32 @@ async def analyze_selected_job(
 
     # Each click runs only its requested agent, in a worker thread so a slow Gemini
     # call does not hold up every other request to the server.
-    node = {"skill_gap": skill_gap_node, "resume_tailor": resume_tailor_node, "cover_letter": cover_letter_node}[action]
+    node = {
+        "skill_gap": skill_gap_node,
+        "resume_tailor": resume_tailor_node,
+        "cover_letter": cover_letter_node,
+        "cold_email": cold_email_node,
+    }[action]
     try:
         result = await asyncio.to_thread(node, state)
     except DailyBudgetExceeded as error:
         raise budget_error(error)
-    field = {"skill_gap": "skill_analysis", "resume_tailor": "tailored_resume", "cover_letter": "cover_letter"}[action]
+    field = {
+        "skill_gap": "skill_analysis",
+        "resume_tailor": "tailored_resume",
+        "cover_letter": "cover_letter",
+        "cold_email": "cold_email",
+    }[action]
     content = result.get(field, "")
 
     response = {"status": "success", "action": action, "content": content, "style": style}
     if action == "resume_tailor" and content:
         # Every difference from the uploaded resume, so the candidate can check it.
         response["changes"] = compare_resumes(resume_text, content)
+    if action == "cold_email":
+        # Only an address the posting itself printed. A guessed one would bounce or
+        # reach the wrong people, so an empty field asks the candidate to fill it in.
+        response["recipient"] = find_contact_email(selected_job.get("description", ""), selected_job.get("apply_email", ""))
     return response
 
 

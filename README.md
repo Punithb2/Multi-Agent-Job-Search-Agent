@@ -4,7 +4,8 @@
 
 Upload a PDF resume, pick a target role, and CareerAtlas finds live job listings,
 ranks them against what your resume actually shows, and generates a skill-gap
-analysis, a tailored resume, and a cover letter for whichever job you choose.
+analysis, a tailored resume, a cover letter, and a cold email for whichever job
+you choose.
 
 > **Live demo:** _multi-agent-job-search-agent.vercel.app_
 
@@ -34,8 +35,8 @@ as "fresher" in India), and **Load more jobs** fetches the next page of results
 without repeating the ones already shown.
 
 **AI tailoring studio.** For a selected job, generate a skill-gap analysis, a
-tailored resume, or a cover letter — each independently, so you only spend API
-calls on what you want. Generating documents requires a free account.
+tailored resume, a cover letter, or a cold email — each independently, so you only
+spend API calls on what you want. Generating documents requires a free account.
 
 **Check every change to your resume.** After tailoring, **Review changes** lines
 the new resume up against the one you uploaded and shows, word by word, what was
@@ -61,6 +62,19 @@ CareerAtlas reads the job details — from the page's structured job data when i
 has any, otherwise with Gemini — or paste the description yourself. Attach a
 resume and tailor for it like any other job.
 
+**One profile, no repeat uploads.** New users fill in a short profile at sign up:
+name, contact details, target role, and their resume. The resume is kept in a
+private folder only that user can open, so every search and every document uses
+it without asking for the file again. Replacing or removing it is done in one
+place, on the profile page.
+
+**Cold email drafts.** Alongside the three documents, CareerAtlas writes a short
+cold email for the job, with a subject line and a message based only on what the
+resume shows. If the posting prints a contact address it is filled in; otherwise
+the user adds one. **Open in Gmail** hands the finished draft to Gmail's compose
+window so the user attaches their resume and presses Send themselves — the email
+comes from their own address, and CareerAtlas never sends anything on its own.
+
 **Accounts, saved jobs, and history.** Sign up to bookmark roles and keep a
 snapshot of every search you run, reopenable later without spending another
 search credit. Guests can search and see ranked matches without an account.
@@ -69,8 +83,10 @@ search credit. Guests can search and see ranked matches without an account.
 Interview, Offer, or Not selected — and private notes, with filters to see where
 each application stands.
 
-**Your resume is never stored.** The PDF is parsed in memory and discarded. No
-resume file or extracted text is written to the database.
+**Your resume stays yours.** Extracted resume text is never written to the
+database. The PDF itself is saved only when signed in, in a private folder that
+only that account can open, so it does not have to be uploaded again — and it can
+be removed from the profile page at any time.
 
 ## Tech stack
 
@@ -309,12 +325,12 @@ backend/
   security.py       rate limits, daily API budgets, and sign-in checks
 frontend/
   src/
-    pages/          Search, Jobs, Tailoring, CustomJob, Auth, SavedJobs, History
+    pages/          Search, Jobs, Tailoring, CustomJob, Profile, Auth, SavedJobs, History
     components/     Icon set, AccountMenu, SignInPrompt, shared UI
     lib/            Supabase client, auth, API client, saved jobs, history, PDF and
                     Word export (layouts for resume, cover letter, and general documents)
 supabase/
-  schema.sql        tables, indexes, RLS policies, signup trigger
+  schema.sql        tables, indexes, RLS policies, signup trigger, resume bucket
   SETUP.md          step-by-step Supabase setup
 render.yaml         backend deployment settings
 .github/workflows/  keep-backend-warm: scheduled health ping
@@ -323,7 +339,8 @@ render.yaml         backend deployment settings
 ## Security notes
 
 - Row Level Security is enabled on every table; policies restrict each user to
-  their own rows. Verified: anonymous reads return nothing, and an insert
+  their own rows. The resume bucket is private and its policies allow a user into
+  only the folder named after their own user id. Verified: anonymous reads return nothing, and an insert
   spoofing another user's id is rejected.
 - Paid API keys live only in `backend/.env` and the Render dashboard.
 - Quota-spending endpoints are protected: searches are rate-limited per IP (5 per

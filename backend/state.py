@@ -17,11 +17,12 @@ class AgentState(TypedDict):
     skill_analysis: str
     tailored_resume: str
     cover_letter: str
+    cold_email: str
     next_agent: str
 
 # 2. Supervisor Routing Options
 class Route(BaseModel):
-    next_agent: Literal["researcher", "skill_gap", "resume_tailor", "cover_letter", "FINISH"]
+    next_agent: Literal["researcher", "skill_gap", "resume_tailor", "cover_letter", "cold_email", "FINISH"]
 
 # 3. Web Scraping Extraction Models
 class JobListing(BaseModel):

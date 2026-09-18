@@ -1,7 +1,7 @@
 import { EmptyState, ErrorMessage, Icon } from '../components/ui';
 
 const COUNTRY_NAMES = { in: 'India', us: 'United States', gb: 'United Kingdom', ca: 'Canada', au: 'Australia' };
-const DOCUMENT_LABELS = { skill_gap: 'Skill gap', resume_tailor: 'Tailored resume', cover_letter: 'Cover letter' };
+const DOCUMENT_LABELS = { skill_gap: 'Skill gap', resume_tailor: 'Tailored resume', cover_letter: 'Cover letter', cold_email: 'Cold email' };
 
 function formatDate(value) {
   if (!value) return '';

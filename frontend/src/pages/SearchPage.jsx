@@ -1,7 +1,7 @@
 import { ErrorMessage, Icon } from '../components/ui';
 import ResumePicker from '../components/ResumePicker';
 
-export default function SearchPage({ role, setRole, resume, setResume, filters, setFilters, error, loading, backendAsleep, onSearch, onBringYourOwnJob }) {
+export default function SearchPage({ role, setRole, resume, setResume, resumeFromProfile = false, onManageResume, filters, setFilters, error, loading, backendAsleep, onSearch, onBringYourOwnJob }) {
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const submit = (event) => {
     event.preventDefault();
@@ -43,7 +43,7 @@ export default function SearchPage({ role, setRole, resume, setResume, filters, 
                 disabled={loading === 'search'}
               />
             </label>
-            <ResumePicker id="resume-upload" resume={resume} onChange={setResume} />
+            <ResumePicker id="resume-upload" resume={resume} onChange={setResume} fromProfile={resumeFromProfile} onManage={onManageResume} />
           </div>
           <div className="filters-grid">
             <label className="field-label">

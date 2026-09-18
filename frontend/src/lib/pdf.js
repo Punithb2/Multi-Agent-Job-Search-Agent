@@ -7,6 +7,7 @@ const DOCUMENT_TITLES = {
   skill_gap: 'Skill Gap Analysis',
   resume_tailor: 'Tailored Resume',
   cover_letter: 'Cover Letter',
+  cold_email: 'Cold Email',
 };
 
 const INK = '#1f2a3d';

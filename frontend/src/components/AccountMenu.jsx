@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from './ui';
 
 /** Initial shown in the avatar bubble, derived from the display name or email. */
-function initialFor(user) {
-  const source = user?.user_metadata?.display_name || user?.email || '';
+function initialFor(user, profile) {
+  const source = profile?.full_name || user?.user_metadata?.display_name || user?.email || '';
   return source.trim().charAt(0).toUpperCase() || '?';
 }
 
-export default function AccountMenu({ user, onSignOut, onGoToSaved, onGoToHistory, busy }) {
+export default function AccountMenu({ user, profile, onSignOut, onGoToProfile, onGoToSaved, onGoToHistory, busy }) {
   const [open, setOpen] = useState(false);
   const wrapper = useRef(null);
   const trigger = useRef(null);
@@ -22,7 +22,7 @@ export default function AccountMenu({ user, onSignOut, onGoToSaved, onGoToHistor
   }, [open]);
 
   const run = (action) => { setOpen(false); action(); };
-  const displayName = user?.user_metadata?.display_name?.trim();
+  const displayName = profile?.full_name?.trim() || user?.user_metadata?.display_name?.trim();
 
   return (
     <div className="account-menu" ref={wrapper}>
@@ -35,18 +35,21 @@ export default function AccountMenu({ user, onSignOut, onGoToSaved, onGoToHistor
         aria-expanded={open}
         aria-label={`Account menu for ${user.email}`}
       >
-        <span className="account-avatar" aria-hidden="true">{initialFor(user)}</span>
+        <span className="account-avatar" aria-hidden="true">{initialFor(user, profile)}</span>
         <span className="account-label">{displayName || user.email}</span>
       </button>
       {open && (
         <div className="account-dropdown" role="menu">
           <div className="account-identity">
-            <span className="account-avatar account-avatar-lg" aria-hidden="true">{initialFor(user)}</span>
+            <span className="account-avatar account-avatar-lg" aria-hidden="true">{initialFor(user, profile)}</span>
             <div>
               <strong>{displayName || 'Signed in'}</strong>
               <small>{user.email}</small>
             </div>
           </div>
+          <button type="button" className="account-item" role="menuitem" onClick={() => run(onGoToProfile)}>
+            <Icon name="user" /> Profile and resume
+          </button>
           <button type="button" className="account-item" role="menuitem" onClick={() => run(onGoToSaved)}>
             <Icon name="bookmark" /> Saved jobs
           </button>
