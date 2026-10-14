@@ -545,27 +545,59 @@ Content rules:
   employer or the position belongs in the cover letter.
 - Leave dates exactly as written in the original, even if they look inconsistent.
 
-Output format: Clean Markdown that faithfully mirrors the candidate's own design conventions:
+Output format: Valid Markdown adhering strictly to this syntax:
 - "# " before the candidate's name.
-- Headline under the name only if the original resume includes one, wrapped in single asterisks (*Headline*).
-- Contact details:
-  * Preserve the candidate's exact contact layout, line structure, and delimiters.
-  * If the original uses icons or symbols (e.g. ✉, 📞, 📍, in, 🔗, etc.), PRESERVE THEM in their exact positions.
-  * If the original formats contact details across multiple lines (e.g. 2 lines), keep the exact same multi-line structure. If on a single line, keep the candidate's original separators (e.g. " | " or bullets).
-  * Format email addresses and profile/portfolio URLs as clickable Markdown links [text](url) (e.g. [punithb165@gmail.com](mailto:punithb165@gmail.com), [linkedin.com/in/username](https://linkedin.com/in/username)), retaining any accompanying icons or labels. All web URLs must begin with "https://" or "http://".
-- "## " before every section heading, retaining the exact heading text and capitalization from the original.
-- Entries (Experience, Projects, Education, Certifications):
-  * Use "### " for the main header of each entry.
-  * Mirror the candidate's original entry structure: preserve how they order the title, company, dates, and location.
-  * If a project, company, or certification has an inline link, demo tag, or arrow (e.g. "| [DEMO ↗](https://...)", "PyGenicArc 🔗", "[Demo]"), PRESERVE IT in its original position.
-  * If an entry has a subtitle line (such as a role, tech stack, or degree/GPA), keep it on its own line wrapped in single asterisks (*...*).
-- Section-specific delimiters and formatting:
-  * In skills sections: faithfully mirror the candidate's delimiter. If the candidate uses colons ("**Category:** values"), KEEP COLONS. If they use em-dashes ("**Category** — values"), keep em-dashes. If skills are listed with bullets or pipes, preserve that format.
-  * In certifications/awards sections: if the original formats them as bullet points (e.g. "- [Course Name 🔗](url) - Provider | Issued: Date"), KEEP THEM AS BULLET POINTS. Do not convert bulleted certifications into section headings unless the original formatted them that way.
-- Bullets vs Paragraphs:
-  * Where the original uses bullet points, use "- " for each.
-  * Where the original describes something in a paragraph, keep it a paragraph.
-- Keep the resume about as long as the original, so it fits the same number of pages.
+- A headline under the name only if the original resume includes one, wrapped in single asterisks (*Headline*).
+- The contact details on ONE single line, separated by " | ". Format emails and profile/portfolio URLs as clickable Markdown links [text](url) (e.g. [punithb165@gmail.com](mailto:punithb165@gmail.com), [linkedin.com/in/username](https://linkedin.com/in/username), [github.com/username](https://github.com/username)). Never put contact items on separate lines. Do not use unicode arrows like "↗" or emojis (use clean text like "[DEMO](url)" instead of "[DEMO ↗](url)"). All web URLs must begin with "https://" or "http://".
+- "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS"). You must always prepend "## " to every section title.
+- "### " before the first line of every entry:
+  * For jobs: "### Role / Title | Dates | Location" (e.g. "### Python Developer Intern | 02/2026 – 05/2026 | Bengaluru")
+  * The employer / company on the second line wrapped in single asterisks (e.g. "*PyGenicArc*"). Never invent additional lines or role descriptions like "Role: Backend Developer".
+  * For projects: "### Project Name | [DEMO](url)" followed by the tech stack on the second line in italics (e.g. "*Python, FastAPI, React...*").
+  * For education: "### School / Institution | Dates | Location" followed by the degree and grade on the second line in italics (e.g. "*B E in Computer Science and Engineering - 8.04 CGPA*").
+  * For certifications: "### [Course / Specialization](url) — Organization | Issued: Month Year".
+- In skills sections: use the candidate's original delimiter (use colons: "**Programming Languages:** Python", "**Database:** SQL, PostgreSQL").
+- Where the original uses bullet points, use "- " for each bullet.
+- Where the original describes something in a paragraph (such as the Career Objective), keep it as a paragraph.
+- Keep the resume about as long as the original, so it cleanly fits onto 1 page.
+
+Example of the required syntax structure:
+
+# Punith B
+[punithb165@gmail.com](mailto:punithb165@gmail.com) | 8088286388 | Bengaluru | [linkedin.com/in/punith-b-965100252](https://linkedin.com/in/punith-b-965100252) | [github.com/Punithb2](https://github.com/Punithb2) | [punithb.me](https://punithb.me)
+
+## CAREER OBJECTIVE
+Computer Science and Engineering graduate with hands-on experience developing backend services and full-stack software applications...
+
+## TECHNICAL SKILLS
+**Programming Languages:** Python
+**Database:** SQL, PostgreSQL, SQLAlchemy
+**Backend:** FastAPI, Django, Django REST Framework, REST APIs, WebSockets, Pytest
+**Frontend:** React, HTML, CSS
+**Tools & Infrastructure:** AWS, Git, GitHub, Docker, GitHub Actions, CI/CD
+**Applied AI:** Large Language Models(LLM), Retrieval-Augmented Generation (RAG), Embeddings, Vector Databases, LangChain
+
+## PROFESSIONAL EXPERIENCE
+### Python Developer Intern | 02/2026 – 05/2026 | Bengaluru
+*PyGenicArc*
+- Developed, tested, and maintained server-side applications...
+- Designed, developed, and integrated RESTful APIs...
+
+## PROJECTS
+### UptimeSentinel: Real-Time Infrastructure & Uptime Monitoring Platform | [DEMO](https://uptimesentinel.vercel.app)
+*Python, FastAPI, React, PostgreSQL(Neon), SQLAlchemy, Alembic, JWT, GitHub Actions, Vercel, Render*
+- Built a multi-user HTTP monitoring platform...
+
+## EDUCATIONAL BACKGROUND
+### K S School Of Engineering And Management | 12/2022 – 05/2026 | Bengaluru
+*B E in Computer Science and Engineering - 8.04 CGPA*
+
+### Narayana Pre University College | 09/2020 – 04/2022 | Bengaluru
+*PUC(PCMC) - 84.5%*
+
+## CERTIFICATIONS
+### [Deep Learning Specialization](https://coursera.org/verify/specialization/...) — DeepLearning.AI & Stanford University (Coursera) | Issued: September 2026
+### [Machine Learning Specialization](https://coursera.org/verify/specialization/...) — DeepLearning.AI & Stanford University (Coursera) | Issued: July 2026
 
 Output ONLY the resume: no greeting, no notes about what changed, no text before
 or after.

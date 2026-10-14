@@ -174,6 +174,12 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
       pageMargins: [s.margin, s.margin, s.margin, s.margin],
       content,
       defaultStyle: { font: s.body.fontKey, fontSize: bodySize, lineHeight: s.lineHeight * level.lineHeight, color: s.body.color, fontFeatures: NO_LIGATURES },
+      styles: {
+        link: {
+          color: s.link.color,
+          ...(s.link.underline ? { decoration: 'underline' } : {}),
+        },
+      },
     },
     fonts: [s.body.fontKey, s.name.fontKey, s.heading.fontKey],
     matched: s.matched,

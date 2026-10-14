@@ -313,7 +313,7 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
             if (b > r + 0.08) and (b > g + 0.04) and (b >= 0.22) and (_saturation(c) > 0.15) and (_lightness(c) < 0.85):
                 blue_colors.append(c)
 
-    link_color = _mode(blue_colors) if blue_colors else None
+    link_color = _mode(blue_colors) if len(blue_colors) >= max(3, len(link_runs) * 0.6) else None
 
     def clamp(value, low, high):
         return round(max(low, min(high, value)), 1)
