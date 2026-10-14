@@ -25,6 +25,27 @@ const EMPTY_PROFILE_STATE = { saving: false, uploading: false, error: '', notice
 
 function App() {
   const { user, loadingSession, accountsEnabled, signOut } = useAuth();
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('career_atlas_theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('career_atlas_theme', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((curr) => (curr === 'dark' ? 'light' : 'dark'));
+
   const [page, setPage] = useState('search');
   const [role, setRole] = useState('');
   const [resume, setResume] = useState(null);
@@ -660,15 +681,26 @@ function App() {
         {accountsEnabled && navLink('saved', 'Saved', 'bookmark', goToSaved)}
         {accountsEnabled && navLink('history', 'History', 'clock', goToHistory)}
       </div>
-      {!accountsEnabled ? (
-        <button className="nav-cta" onClick={goHome}><span className="nav-cta-label">New search</span><Icon name="arrow" /></button>
-      ) : loadingSession ? (
-        <span className="account-placeholder" aria-hidden="true" />
-      ) : user ? (
-        <AccountMenu user={user} profile={profile} busy={signingOut} onSignOut={handleSignOut} onGoToProfile={goToProfile} onGoToSaved={() => goTo('saved')} onGoToHistory={() => goTo('history')} />
-      ) : (
-        <button className="nav-cta" onClick={() => openAuth('login')}><span className="nav-cta-label">Sign in</span><Icon name="arrow" /></button>
-      )}
+      <div className="topbar-actions">
+        <button
+          type="button"
+          className="theme-toggle-btn plain-button"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+        </button>
+        {!accountsEnabled ? (
+          <button className="nav-cta" onClick={goHome}><span className="nav-cta-label">New search</span><Icon name="arrow" /></button>
+        ) : loadingSession ? (
+          <span className="account-placeholder" aria-hidden="true" />
+        ) : user ? (
+          <AccountMenu user={user} profile={profile} busy={signingOut} onSignOut={handleSignOut} onGoToProfile={goToProfile} onGoToSaved={() => goTo('saved')} onGoToHistory={() => goTo('history')} />
+        ) : (
+          <button className="nav-cta" onClick={() => openAuth('login')}><span className="nav-cta-label">Sign in</span><Icon name="arrow" /></button>
+        )}
+      </div>
     </nav>
 
     {page === 'search' && <SearchPage {...{ role, setRole, resume, setResume: attachResume, resumeFromProfile, onManageResume: goToProfile, filters, setFilters, error, loading, backendAsleep, onSearch: searchJobs, onBringYourOwnJob: () => goTo('custom') }} />}

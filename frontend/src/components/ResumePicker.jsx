@@ -5,11 +5,18 @@ import { Icon } from './ui';
  * the Studio. Once a resume is saved to the profile it is shown as a fixed row
  * instead: the profile page is the one place it is changed.
  */
-export default function ResumePicker({ id, resume, onChange, disabled = false, readyText = 'Ready for tailored matches', error = '', fromProfile = false, onManage }) {
+export default function ResumePicker({ id, resume, onChange, disabled = false, readyText = 'Ready for tailored matches', error = '', fromProfile = false, onManage, label = 'Resume', hint, hideLabel = false }) {
+  const headerHint = hint || (fromProfile && resume ? 'From profile' : 'PDF, max 5 MB');
+
   if (fromProfile && resume) {
     return (
       <div className="field-label">
-        <span>Resume</span>
+        {!hideLabel && (
+          <div className="field-label-header">
+            <span>{label}</span>
+            {headerHint && <span className="field-hint-badge">{headerHint}</span>}
+          </div>
+        )}
         <div className="profile-resume is-compact">
           <Icon name="document" />
           <span className="profile-resume-copy">
@@ -24,7 +31,12 @@ export default function ResumePicker({ id, resume, onChange, disabled = false, r
 
   return (
     <div className="field-label">
-      <span>Resume</span>
+      {!hideLabel && (
+        <div className="field-label-header">
+          <span>{label}</span>
+          {headerHint && <span className="field-hint-badge">{headerHint}</span>}
+        </div>
+      )}
       <input
         className="visually-hidden"
         id={id}
