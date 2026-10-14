@@ -133,14 +133,21 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
 
     if (node.type === 'heading') {
       const { left, rightNodes, hasRight } = splitHeadingChildren(node.children);
-      content.push({
-        columns: [
-          { text: inlineRuns(left, { bold: true }, s.link), width: '*' },
-          ...(hasRight ? [{ text: inlineRuns(rightNodes, {}, s.link), width: 'auto', alignment: 'right', color: muted }] : []),
-        ],
-        columnGap: 12,
-        margin: [0, g(5), 0, 0],
-      });
+      content.push(
+        hasRight
+          ? {
+              columns: [
+                { text: inlineRuns(left, { bold: true }, s.link), width: '*' },
+                { text: inlineRuns(rightNodes, {}, s.link), width: 'auto', alignment: 'right', color: muted },
+              ],
+              columnGap: 12,
+              margin: [0, g(5), 0, 0],
+            }
+          : {
+              text: inlineRuns(left, { bold: true }, s.link),
+              margin: [0, g(5), 0, 0],
+            }
+      );
       continue;
     }
 

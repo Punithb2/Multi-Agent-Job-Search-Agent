@@ -139,7 +139,7 @@ function resumeDocument(docx, markdown, rawStyle) {
       children.push(new Paragraph({
         spacing: { before: pt(5) },
         keepNext: true,
-        tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }],
+        ...(hasRight ? { tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }] } : {}),
         children: [
           ...runsFrom(docx, left, { bold: true }, s.link),
           ...(hasRight ? [new TextRun({ children: [new Tab()] }), ...runsFrom(docx, rightNodes, { color: muted }, s.link)] : []),

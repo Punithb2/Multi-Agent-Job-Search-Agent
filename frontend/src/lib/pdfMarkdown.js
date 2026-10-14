@@ -57,38 +57,11 @@ export function parseMarkdown(markdown) {
   return fromMarkdown(normalizeMarkdown(markdown));
 }
 
-/**
- * Split a heading's inline nodes (e.g. "### [Project](url) | [DEMO ↗](url)") at the first
- * " | " separator. Returns { left: Array<node>, rightNodes: Array<node>, right: string, hasRight: boolean }
- * so that both the left and right sides retain rich inline runs (such as clickable links)
- * while maintaining backward compatibility with callers expecting string right.
- */
-export function splitHeadingChildren(children = []) {
-  const left = [];
-  const rightNodes = [];
-  let splitFound = false;
+const DATE_OR_TIMELINE_REGEX =
+  /\b(?:19|20)\d{2}\b|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b|\b(?:Present|Current|Ongoing|Issued|Expected)\b|\b\d{1,2}[\/.-]\d{2,4}\b|\b(?:Spring|Summer|Fall|Autumn|Winter)\s+\d{4}\b/i;
 
-  for (const child of children) {
-    if (splitFound) {
-      rightNodes.push(child);
-      continue;
-    }
-    if (child.type === 'text' && child.value.includes(' | ')) {
-      const idx = child.value.indexOf(' | ');
-      const before = child.value.slice(0, idx);
-      const after = child.value.slice(idx + 3);
-      if (before) left.push({ ...child, value: before });
-      if (after) rightNodes.push({ ...child, value: after });
-      splitFound = true;
-    } else {
-      left.push(child);
-    }
-  }
-
-  const right = rightNodes.map(plainText).join('').trim();
-  const hasRight = Boolean(right);
-  return { left, right, rightNodes, hasRight };
-}
+const DEMO_OR_LINK_REGEX =
+  /^\s*(?:\[[^\]]*\]|\b(?:DEMO|Demo|demo|Code|GitHub|Github|GitLab|Gitlab|Live|Repo|Repository|Preview|Link|Website|App|Docs|Paper)\b)/i;
 
 /** Plain text of any markdown node, keeping soft line breaks. */
 export function plainText(node) {
@@ -96,6 +69,82 @@ export function plainText(node) {
   if (typeof node.value === 'string') return node.value;
   if (node.type === 'break') return '\n';
   return (node.children || []).map(plainText).join('');
+}
+
+/**
+ * Split a heading's inline nodes (e.g. "### Job | 2024 | City") at the appropriate " | "
+ * separator so date/location metadata can be right-aligned while keeping the role/project
+ * title on the left.
+ *
+ * Project demo links (e.g. "### Project Name | [DEMO](url)") or repository badges must
+ * stay inline with the title on the left and NOT be pushed to the far right margin.
+ *
+ * Returns { left: Array<node>, rightNodes: Array<node>, right: string, hasRight: boolean }.
+ */
+export function splitHeadingChildren(children = []) {
+  const splitCandidates = [];
+
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    if (child.type === 'text' && child.value.includes(' | ')) {
+      let searchPos = 0;
+      while (true) {
+        const idx = child.value.indexOf(' | ', searchPos);
+        if (idx === -1) break;
+
+        const immediateAfter = child.value.slice(idx + 3);
+        const nextNodes = children.slice(i + 1);
+        const remainingText = [
+          immediateAfter,
+          ...nextNodes.map(plainText),
+        ].join('').trim();
+
+        const firstToken = immediateAfter.trim() || (nextNodes[0] ? plainText(nextNodes[0]).trim() : '');
+        const isNextNodeLink = !immediateAfter.trim() && nextNodes[0] && nextNodes[0].type === 'link';
+        const isDemo = isNextNodeLink || DEMO_OR_LINK_REGEX.test(firstToken);
+        const hasDate = DATE_OR_TIMELINE_REGEX.test(remainingText);
+
+        splitCandidates.push({
+          nodeIndex: i,
+          charIndex: idx,
+          remainingText,
+          isDemo,
+          hasDate,
+        });
+
+        searchPos = idx + 3;
+      }
+    }
+  }
+
+  // Only split off into the right column if the right-hand segment represents
+  // a date / timeline / location metadata block and is NOT a project demo link.
+  const valid = splitCandidates.filter((c) => !c.isDemo && c.hasDate);
+  const chosen = valid.length > 0 ? valid[0] : null;
+
+  if (!chosen) {
+    return { left: children, right: '', rightNodes: [], hasRight: false };
+  }
+
+  const left = [];
+  const rightNodes = [];
+
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    if (i < chosen.nodeIndex) {
+      left.push(child);
+    } else if (i === chosen.nodeIndex) {
+      const before = child.value.slice(0, chosen.charIndex);
+      const after = child.value.slice(chosen.charIndex + 3);
+      if (before) left.push({ ...child, value: before });
+      if (after) rightNodes.push({ ...child, value: after });
+    } else {
+      rightNodes.push(child);
+    }
+  }
+
+  const right = rightNodes.map(plainText).join('').trim();
+  return { left, right, rightNodes, hasRight: Boolean(right) };
 }
 
 /** Inline markdown nodes → pdfmake text runs. */
