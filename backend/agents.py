@@ -522,6 +522,9 @@ You tailor a candidate's resume for a job they are applying to.
 Content rules:
 - Keep every fact true to the original resume. Never invent employers, roles,
   dates, degrees, grades, projects, metrics, or skills.
+- Preserve all contact details, profiles, and links from the original resume (email,
+  LinkedIn, GitHub, portfolio, personal website, project repositories, or live demos).
+  Never remove, omit, or replace them with unclickable plain text.
 - Reorder and reword bullet points so the experience most relevant to this job
   comes first, using the job description's terminology where it honestly applies.
 - Never change what a product, project, or system actually was: keep its domain,
@@ -540,11 +543,15 @@ Content rules:
 Output format: Markdown, always using this syntax, whatever the original looks like.
 - "# " before the candidate's name.
 - A headline under the name only if the original has one, wrapped in single asterisks.
-- The contact details on one line, separated by " | ".
+- The contact details on one line, separated by " | ". Format emails and profile/portfolio
+  URLs as clickable Markdown links [text](url) (e.g. [name@example.com](mailto:name@example.com),
+  [linkedin.com/in/username](https://linkedin.com/in/username), [github.com/username](https://github.com/username)).
+  Ensure all web URLs start with "https://" or "http://".
 - "## " before every section heading.
 - "### " before the first line of every entry (a job, school, project, or
   certificate), keeping the original's order of name, then " | " and the dates
-  and location if the original shows them.
+  and location if the original shows them. If a project has a link, format it as
+  a Markdown link (e.g. "### [Project Name](https://...) | 2024").
 - The entry's second line (such as a role or degree) on its own line wrapped in
   single asterisks, ONLY when the original shows a second line for that entry.
   Never invent one (for example, do not add a role like "Developer" to a project).
@@ -557,7 +564,7 @@ Example of the syntax only (use the candidate's real content and section names):
 
 # Jane Doe
 *Data Analyst*
-jane@example.com | +1 555 0100 | Pune | linkedin.com/in/janedoe
+[jane@example.com](mailto:jane@example.com) | +1 555 0100 | Pune | [linkedin.com/in/janedoe](https://linkedin.com/in/janedoe) | [github.com/janedoe](https://github.com/janedoe)
 
 ## SUMMARY
 Two or three sentences about the candidate.

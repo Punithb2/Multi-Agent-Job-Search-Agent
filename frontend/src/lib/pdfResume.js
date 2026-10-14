@@ -1,5 +1,5 @@
 import { DEFAULT_FONT, FONT_LINE_RATIOS, resolveFontKey } from './pdfFonts';
-import { NO_LIGATURES, PAGE_WIDTHS, horizontalRule, inlineRuns, parseMarkdown, plainText } from './pdfMarkdown';
+import { NO_LIGATURES, PAGE_WIDTHS, horizontalRule, inlineRuns, parseMarkdown, plainText, splitHeadingChildren } from './pdfMarkdown';
 
 // Used when no style could be read from the uploaded resume (or for documents
 // generated before styles were captured): a clean, ATS-friendly layout.
@@ -45,15 +45,6 @@ export function resolveStyle(style) {
   };
 }
 
-/**
- * Split "PyGenicArc | 02/2026 – 05/2026 | Bengaluru" at the first separator: the
- * entry name goes left, and everything after (dates, location) goes right.
- */
-function splitEntry(text) {
-  const index = text.indexOf(' | ');
-  if (index === -1) return [text, ''];
-  return [text.slice(0, index).trim(), text.slice(index + 3).trim()];
-}
 
 /** A paragraph that is nothing but one italic span, e.g. "*Headline*". */
 function isItalicLine(node) {
@@ -132,10 +123,10 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
     }
 
     if (node.type === 'heading') {
-      const [left, right] = splitEntry(plainText(node).trim());
+      const { left, right } = splitHeadingChildren(node.children);
       content.push({
         columns: [
-          { text: left, bold: true, width: '*' },
+          { text: inlineRuns(left, { bold: true }, s.accent || muted), width: '*' },
           ...(right ? [{ text: right, width: 'auto', alignment: 'right', color: muted }] : []),
         ],
         columnGap: 12,

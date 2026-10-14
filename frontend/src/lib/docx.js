@@ -1,5 +1,5 @@
 import { parseCoverLetter } from './pdfCoverLetter';
-import { parseMarkdown, plainText } from './pdfMarkdown';
+import { parseMarkdown, plainText, splitHeadingChildren } from './pdfMarkdown';
 import { pdfFilename } from './pdf';
 import { resolveStyle } from './pdfResume';
 
@@ -127,16 +127,13 @@ function resumeDocument(docx, markdown, rawStyle) {
       continue;
     }
     if (node.type === 'heading') {
-      const text = plainText(node).trim();
-      const split = text.indexOf(' | ');
-      const left = split === -1 ? text : text.slice(0, split).trim();
-      const right = split === -1 ? '' : text.slice(split + 3).trim();
+      const { left, right } = splitHeadingChildren(node.children);
       children.push(new Paragraph({
         spacing: { before: pt(5) },
         keepNext: true,
         tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }],
         children: [
-          new TextRun({ text: left, bold: true }),
+          ...runsFrom(docx, left, { bold: true }),
           ...(right ? [new TextRun({ children: [new Tab(), right], color: muted })] : []),
         ],
       }));

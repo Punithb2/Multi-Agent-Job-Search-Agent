@@ -76,6 +76,32 @@ def budget_error(error: DailyBudgetExceeded) -> HTTPException:
     return HTTPException(status_code=429, detail=BUDGET_MESSAGES.get(error.service, "Daily limit reached. Please try again tomorrow."))
 
 
+def _extract_pdf_links(reader: PdfReader) -> list[str]:
+    """Extract destination URLs from PDF hyperlink annotations."""
+    urls = []
+    for page in reader.pages:
+        try:
+            annots = page.get("/Annots")
+            if not annots:
+                continue
+            annot_list = annots.get_object() if hasattr(annots, "get_object") else annots
+            for annot_ref in annot_list:
+                annot = annot_ref.get_object() if hasattr(annot_ref, "get_object") else annot_ref
+                if annot and annot.get("/Subtype") == "/Link":
+                    action = annot.get("/A")
+                    if action:
+                        action_obj = action.get_object() if hasattr(action, "get_object") else action
+                        if action_obj.get("/S") == "/URI":
+                            uri = action_obj.get("/URI")
+                            if uri:
+                                uri_str = str(uri).strip()
+                                if uri_str and uri_str not in urls:
+                                    urls.append(uri_str)
+        except Exception:
+            continue
+    return urls
+
+
 async def read_resume(resume_pdf: UploadFile) -> tuple[bytes, str]:
     """Validate an uploaded resume and return its bytes and extracted text."""
     if resume_pdf.content_type != "application/pdf":
@@ -88,6 +114,15 @@ async def read_resume(resume_pdf: UploadFile) -> tuple[bytes, str]:
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
         text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        pdf_links = _extract_pdf_links(reader)
+        # If the PDF had clickable link annotations whose URLs are not written in the text,
+        # append them so the tailoring agent has access to the actual destination URLs.
+        missing_links = [
+            link for link in pdf_links
+            if link not in text and link.replace("https://", "").replace("http://", "").rstrip("/") not in text
+        ]
+        if missing_links:
+            text += "\n\nLinks found in resume:\n" + "\n".join(f"- {link}" for link in missing_links)
     except Exception:
         raise HTTPException(status_code=422, detail="That PDF could not be read. Please upload a different file.")
     if not text:
