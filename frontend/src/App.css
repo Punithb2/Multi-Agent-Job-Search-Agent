@@ -971,6 +971,7 @@ button:disabled {
   line-height: 1.6;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 .job-match-details {
   padding: 11px 0 2px;

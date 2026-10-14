@@ -519,6 +519,10 @@ def resume_tailor_node(state: AgentState):
     prompt = f"""
 You tailor a candidate's resume for a job they are applying to.
 
+Your mission:
+1. TAILOR THE CONTENT: Reword and reorder bullet points to highlight the candidate's qualifications, technologies, and achievements that are most relevant to the target job, incorporating the job description's terminology where it truthfully applies.
+2. PRESERVE THE CANDIDATE'S ORIGINAL STYLE & FORMATTING: Every user has their own unique resume design, formatting conventions, delimiters, and visual structure. Faithfully mirror and preserve the candidate's exact formatting patterns, layout style, and design choices rather than imposing a generic template.
+
 Content rules:
 - Keep every fact true to the original resume. Never invent employers, roles,
   dates, degrees, grades, projects, metrics, or skills.
@@ -531,53 +535,37 @@ Content rules:
   purpose, and name (a "proctoring platform" stays a proctoring platform, an
   "anti-cheating system" stays an anti-cheating system). Only rephrase how the
   candidate's work on it is described.
-- Keep the original resume's sections, in the original order, with the original
-  section headings.
-- If the original has a summary or objective, rewrite it as a general
-  professional summary about the candidate's strengths for this kind of work.
+- Keep the original resume's sections, in the original order, using their exact original
+  section headings and capitalization.
+- If the original has a summary or objective, tailor it as a concise professional summary
+  highlighting the candidate's strengths for this kind of work, while retaining the original's
+  format (paragraph vs bullets).
 - NEVER mention the target company's name or the exact job title being applied
   for anywhere in the resume. A resume describes the candidate; naming the
   employer or the position belongs in the cover letter.
 - Leave dates exactly as written in the original, even if they look inconsistent.
 
-Output format: Markdown, always using this syntax, whatever the original looks like.
+Output format: Clean Markdown that faithfully mirrors the candidate's own design conventions:
 - "# " before the candidate's name.
-- A headline under the name only if the original has one, wrapped in single asterisks.
-- The contact details on one line, separated by " | ". Format emails and profile/portfolio
-  URLs as clickable Markdown links [text](url) (e.g. [name@example.com](mailto:name@example.com),
-  [linkedin.com/in/username](https://linkedin.com/in/username), [github.com/username](https://github.com/username)).
-  Ensure all web URLs start with "https://" or "http://".
-- "## " before every section heading.
-- "### " before the first line of every entry (a job, school, project, or
-  certificate), keeping the original's order of name, then " | " and the dates
-  and location if the original shows them. If a project has a link, format it as
-  a Markdown link (e.g. "### [Project Name](https://...) | 2024").
-- The entry's second line (such as a role or degree) on its own line wrapped in
-  single asterisks, ONLY when the original shows a second line for that entry.
-  Never invent one (for example, do not add a role like "Developer" to a project).
-- Where the original uses bullet points, "- " for each. Never use the "•" character.
-- Where the original describes something in a paragraph, keep it a paragraph.
-- In a skills-style section, one "**Label** — values" line per category.
+- Headline under the name only if the original resume includes one, wrapped in single asterisks (*Headline*).
+- Contact details:
+  * Preserve the candidate's exact contact layout, line structure, and delimiters.
+  * If the original uses icons or symbols (e.g. ✉, 📞, 📍, in, 🔗, etc.), PRESERVE THEM in their exact positions.
+  * If the original formats contact details across multiple lines (e.g. 2 lines), keep the exact same multi-line structure. If on a single line, keep the candidate's original separators (e.g. " | " or bullets).
+  * Format email addresses and profile/portfolio URLs as clickable Markdown links [text](url) (e.g. [punithb165@gmail.com](mailto:punithb165@gmail.com), [linkedin.com/in/username](https://linkedin.com/in/username)), retaining any accompanying icons or labels. All web URLs must begin with "https://" or "http://".
+- "## " before every section heading, retaining the exact heading text and capitalization from the original.
+- Entries (Experience, Projects, Education, Certifications):
+  * Use "### " for the main header of each entry.
+  * Mirror the candidate's original entry structure: preserve how they order the title, company, dates, and location.
+  * If a project, company, or certification has an inline link, demo tag, or arrow (e.g. "| [DEMO ↗](https://...)", "PyGenicArc 🔗", "[Demo]"), PRESERVE IT in its original position.
+  * If an entry has a subtitle line (such as a role, tech stack, or degree/GPA), keep it on its own line wrapped in single asterisks (*...*).
+- Section-specific delimiters and formatting:
+  * In skills sections: faithfully mirror the candidate's delimiter. If the candidate uses colons ("**Category:** values"), KEEP COLONS. If they use em-dashes ("**Category** — values"), keep em-dashes. If skills are listed with bullets or pipes, preserve that format.
+  * In certifications/awards sections: if the original formats them as bullet points (e.g. "- [Course Name 🔗](url) - Provider | Issued: Date"), KEEP THEM AS BULLET POINTS. Do not convert bulleted certifications into section headings unless the original formatted them that way.
+- Bullets vs Paragraphs:
+  * Where the original uses bullet points, use "- " for each.
+  * Where the original describes something in a paragraph, keep it a paragraph.
 - Keep the resume about as long as the original, so it fits the same number of pages.
-
-Example of the syntax only (use the candidate's real content and section names):
-
-# Jane Doe
-*Data Analyst*
-[jane@example.com](mailto:jane@example.com) | +1 555 0100 | Pune | [linkedin.com/in/janedoe](https://linkedin.com/in/janedoe) | [github.com/janedoe](https://github.com/janedoe)
-
-## SUMMARY
-Two or three sentences about the candidate.
-
-## EXPERIENCE
-### Acme Analytics | 06/2023 – 05/2025 | Pune
-*Junior Data Analyst*
-- A bullet point about the work.
-- Another bullet point.
-
-## SKILLS
-**Languages** — Python, SQL
-**Tools** — Excel, Power BI
 
 Output ONLY the resume: no greeting, no notes about what changed, no text before
 or after.

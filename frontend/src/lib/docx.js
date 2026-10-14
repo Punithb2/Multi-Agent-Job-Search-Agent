@@ -135,14 +135,14 @@ function resumeDocument(docx, markdown, rawStyle) {
       continue;
     }
     if (node.type === 'heading') {
-      const { left, right } = splitHeadingChildren(node.children);
+      const { left, rightNodes, hasRight } = splitHeadingChildren(node.children);
       children.push(new Paragraph({
         spacing: { before: pt(5) },
         keepNext: true,
         tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }],
         children: [
           ...runsFrom(docx, left, { bold: true }, s.link),
-          ...(right ? [new TextRun({ children: [new Tab(), right], color: muted })] : []),
+          ...(hasRight ? [new TextRun({ children: [new Tab()] }), ...runsFrom(docx, rightNodes, { color: muted }, s.link)] : []),
         ],
       }));
       continue;

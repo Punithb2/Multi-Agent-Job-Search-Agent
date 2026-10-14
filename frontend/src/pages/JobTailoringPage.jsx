@@ -15,22 +15,6 @@ const materialOptions = [
   { id: 'cold_email', title: 'Cold email', text: 'Write a short email to a recruiter, ready to send from your Gmail.' },
 ];
 
-const MARKDOWN_COMPONENTS = {
-  a: ({ href, children, ...props }) => {
-    const raw = String(href || '').trim();
-    const targetUrl = /^(https?:\/\/|mailto:|tel:)/i.test(raw)
-      ? raw
-      : raw.includes('@')
-        ? `mailto:${raw}`
-        : `https://${raw}`;
-    return (
-      <a href={targetUrl} target="_blank" rel="noopener noreferrer" {...props}>
-        {children}
-      </a>
-    );
-  },
-};
-
 export default function JobTailoringPage({
   job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', resume, setResume,
   resumeFromProfile = false, onManageResume, recipient = '', onChangeRecipient,

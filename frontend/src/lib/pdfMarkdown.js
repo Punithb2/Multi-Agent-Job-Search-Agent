@@ -58,19 +58,19 @@ export function parseMarkdown(markdown) {
 }
 
 /**
- * Split a heading's inline nodes (e.g. "### [Project](url) | 2024") at the first
- * " | " separator. Returns { left: Array<node>, right: string } so that the left
- * side retains rich inline runs (such as clickable links) while the right side
- * gets clean date/location text.
+ * Split a heading's inline nodes (e.g. "### [Project](url) | [DEMO ↗](url)") at the first
+ * " | " separator. Returns { left: Array<node>, rightNodes: Array<node>, right: string, hasRight: boolean }
+ * so that both the left and right sides retain rich inline runs (such as clickable links)
+ * while maintaining backward compatibility with callers expecting string right.
  */
 export function splitHeadingChildren(children = []) {
   const left = [];
-  let right = '';
+  const rightNodes = [];
   let splitFound = false;
 
   for (const child of children) {
     if (splitFound) {
-      right += plainText(child);
+      rightNodes.push(child);
       continue;
     }
     if (child.type === 'text' && child.value.includes(' | ')) {
@@ -78,14 +78,16 @@ export function splitHeadingChildren(children = []) {
       const before = child.value.slice(0, idx);
       const after = child.value.slice(idx + 3);
       if (before) left.push({ ...child, value: before });
-      right += after;
+      if (after) rightNodes.push({ ...child, value: after });
       splitFound = true;
     } else {
       left.push(child);
     }
   }
 
-  return { left, right: right.trim() };
+  const right = rightNodes.map(plainText).join('').trim();
+  const hasRight = Boolean(right);
+  return { left, right, rightNodes, hasRight };
 }
 
 /** Plain text of any markdown node, keeping soft line breaks. */
