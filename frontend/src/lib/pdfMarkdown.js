@@ -97,21 +97,34 @@ export function plainText(node) {
 }
 
 /** Inline markdown nodes → pdfmake text runs. */
-export function inlineRuns(nodes = [], marks = {}, linkColor = '#4d46db') {
+export function inlineRuns(nodes = [], marks = {}, linkStyle = '#1f2a3d') {
+  const linkOpts = typeof linkStyle === 'string' ? { color: linkStyle } : (linkStyle || {});
+  const linkColor = linkOpts.color || '#1f2a3d';
+  const linkUnderline = Boolean(linkOpts.underline);
+
   return nodes.flatMap((node) => {
     switch (node.type) {
       case 'text':
         return [{ text: node.value, ...marks }];
       case 'strong':
-        return inlineRuns(node.children, { ...marks, bold: true }, linkColor);
+        return inlineRuns(node.children, { ...marks, bold: true }, linkStyle);
       case 'emphasis':
-        return inlineRuns(node.children, { ...marks, italics: true }, linkColor);
+        return inlineRuns(node.children, { ...marks, italics: true }, linkStyle);
       case 'delete':
-        return inlineRuns(node.children, { ...marks, decoration: 'lineThrough' }, linkColor);
+        return inlineRuns(node.children, { ...marks, decoration: 'lineThrough' }, linkStyle);
       case 'inlineCode':
         return [{ text: node.value, ...marks }];
       case 'link':
-        return inlineRuns(node.children, { ...marks, color: linkColor, link: node.url }, linkColor);
+        return inlineRuns(
+          node.children,
+          {
+            ...marks,
+            color: linkColor,
+            link: node.url,
+            ...(linkUnderline ? { decoration: 'underline' } : {}),
+          },
+          linkStyle
+        );
       case 'break':
         return [{ text: '\n' }];
       case 'image':
@@ -119,7 +132,7 @@ export function inlineRuns(nodes = [], marks = {}, linkColor = '#4d46db') {
       case 'html':
         return [{ text: node.value.replace(/<[^>]+>/g, ''), ...marks }];
       default:
-        return node.children ? inlineRuns(node.children, marks, linkColor) : [];
+        return node.children ? inlineRuns(node.children, marks, linkStyle) : [];
     }
   });
 }

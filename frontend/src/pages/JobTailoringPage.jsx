@@ -35,6 +35,7 @@ export default function JobTailoringPage({
   job, materials, documentStyle = null, loading, error, backLabel = 'All job matches', resume, setResume,
   resumeFromProfile = false, onManageResume, recipient = '', onChangeRecipient,
   onBack, onGenerate, onNewJob, review, onCheckChanges, onFixChange, onDismissChange, onSaveResume,
+  onRevertAll,
 }) {
   const [activePanel, setActivePanel] = useState(materialOptions[0].id);
   // Tailored resume view: the document, the change review, or the editor.
@@ -94,6 +95,48 @@ export default function JobTailoringPage({
   const showResumeTabs = activeOption.id === 'resume_tailor' && Boolean(activeContent) && loading !== 'resume_tailor';
   const isColdEmail = activeOption.id === 'cold_email';
   const flaggedCount = review.changes?.items.filter((item) => item.new_terms?.length).length || 0;
+
+  const isResume = activeOption.id === 'resume_tailor';
+  const customMarkdownComponents = useMemo(() => {
+    const isOriginalBlue = Boolean(documentStyle?.link?.color);
+    const isOriginalUnderlined = Boolean(documentStyle?.link?.underline);
+
+    return {
+      a: ({ href, children, ...props }) => {
+        const raw = String(href || '').trim();
+        const targetUrl = /^(https?:\/\/|mailto:|tel:)/i.test(raw)
+          ? raw
+          : raw.includes('@')
+            ? `mailto:${raw}`
+            : `https://${raw}`;
+
+        // When viewing the tailored resume, preserve the original link style:
+        // Only show blue if the original PDF had blue; only underline if the original PDF had underline.
+        // Otherwise, render cleanly in the candidate's body text color / inherit without underline.
+        const style = isResume
+          ? {
+              color: isOriginalBlue ? documentStyle.link.color : (documentStyle?.body?.color || 'inherit'),
+              textDecoration: isOriginalUnderlined ? 'underline' : 'none',
+              textUnderlineOffset: '2.5px',
+              fontWeight: isOriginalBlue ? 600 : 'inherit',
+            }
+          : undefined;
+
+        return (
+          <a
+            href={targetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={style}
+            className={isResume ? 'resume-tailored-link' : undefined}
+            {...props}
+          >
+            {children}
+          </a>
+        );
+      },
+    };
+  }, [isResume, documentStyle]);
 
   return (
     <section className="page-section tailoring-page">
@@ -239,6 +282,7 @@ export default function JobTailoringPage({
                 onFix={onFixChange}
                 onDismiss={onDismissChange}
                 onEdit={() => setResumeView('edit')}
+                onRevertAll={onRevertAll}
               />
             ) : showResumeTabs && resumeView === 'edit' ? (
               <ResumeEditor key={activeContent} value={activeContent} saving={review.saving} onSave={saveEdits} onCancel={() => setResumeView('document')} />
@@ -259,7 +303,7 @@ export default function JobTailoringPage({
                 </button>
               )}
               <article className="markdown-sheet workspace-markdown">
-                <ReactMarkdown components={MARKDOWN_COMPONENTS}>{normalizeMarkdown(activeContent)}</ReactMarkdown>
+                <ReactMarkdown components={customMarkdownComponents}>{normalizeMarkdown(activeContent)}</ReactMarkdown>
               </article>
               </div>
             ) : (

@@ -80,7 +80,7 @@ function ChangeCard({ item, onFix, onDismiss, onEdit }) {
  * What changed between the uploaded resume and the tailored one, with fixes. The
  * comparison is done word by word against the original text, not written by AI.
  */
-export default function ResumeReview({ changes, checking, error, canCheck, onCheck, onFix, onDismiss, onEdit }) {
+export default function ResumeReview({ changes, checking, error, canCheck, onCheck, onFix, onDismiss, onEdit, onRevertAll }) {
   if (!changes) {
     return (
       <div className="review-empty">
@@ -99,6 +99,7 @@ export default function ResumeReview({ changes, checking, error, canCheck, onChe
   const { summary, items } = changes;
   const flagged = items.filter((item) => item.new_terms?.length).length;
   const ordered = [...items].sort((a, b) => Number(Boolean(b.new_terms?.length)) - Number(Boolean(a.new_terms?.length)));
+  const revertibleCount = items.filter((item) => item.type === 'modified' && REVERTIBLE_KINDS.has(item.kind)).length;
 
   return (
     <div className="review-panel">
@@ -111,6 +112,16 @@ export default function ResumeReview({ changes, checking, error, canCheck, onChe
           {flagged > 0 && <span className="review-chip chip-flagged"><Icon name="shield" /> {flagged} to verify</span>}
         </div>
         <div className="review-tools">
+          {onRevertAll && revertibleCount > 0 && (
+            <button
+              type="button"
+              className="change-button"
+              onClick={onRevertAll}
+              title="Put all reworded bullet points back to your original resume's wording"
+            >
+              <Icon name="back" /> Revert all ({revertibleCount})
+            </button>
+          )}
           <button type="button" className="link-button" onClick={onCheck} disabled={checking || !canCheck} title={canCheck ? 'Compare again' : 'Attach your resume to compare again'}>
             {checking ? 'Comparing...' : 'Compare again'}
           </button>

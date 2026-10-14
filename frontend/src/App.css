@@ -1389,6 +1389,12 @@ button:disabled {
   color: var(--accent-dark);
   opacity: 0.9;
 }
+.markdown-sheet a.resume-tailored-link {
+  transition: opacity 0.15s ease;
+}
+.markdown-sheet a.resume-tailored-link:hover {
+  opacity: 0.75;
+}
 .markdown-sheet p, .markdown-sheet li {
   white-space: pre-line;
 }

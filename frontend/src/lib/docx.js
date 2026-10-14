@@ -45,7 +45,7 @@ export function wordFontName(pdfFontName, fallback = 'Calibri') {
     .trim() || fallback;
 }
 
-function runsFrom(docx, nodes, marks = {}) {
+function runsFrom(docx, nodes, marks = {}, linkStyle = null) {
   const { TextRun, ExternalHyperlink } = docx;
   return nodes.flatMap((node) => {
     switch (node.type) {
@@ -54,17 +54,25 @@ function runsFrom(docx, nodes, marks = {}) {
         // headline and contact line, each skills line). Keep them as line breaks.
         return node.value.split('\n').map((part, index) => new TextRun({ text: part, ...(index > 0 ? { break: 1 } : {}), ...marks }));
       case 'strong':
-        return runsFrom(docx, node.children, { ...marks, bold: true });
+        return runsFrom(docx, node.children, { ...marks, bold: true }, linkStyle);
       case 'emphasis':
-        return runsFrom(docx, node.children, { ...marks, italics: true });
+        return runsFrom(docx, node.children, { ...marks, italics: true }, linkStyle);
       case 'inlineCode':
         return [new TextRun({ text: node.value, ...marks })];
       case 'break':
         return [new TextRun({ break: 1 })];
-      case 'link':
-        return [new ExternalHyperlink({ link: node.url, children: runsFrom(docx, node.children, { ...marks, style: 'Hyperlink' }) })];
+      case 'link': {
+        const linkColor = linkStyle?.color ? hex(linkStyle.color) : (marks.color || '1F2A3D');
+        const isUnderlined = Boolean(linkStyle?.underline);
+        const linkMarks = {
+          ...marks,
+          color: linkColor,
+          ...(isUnderlined ? { underline: {} } : {}),
+        };
+        return [new ExternalHyperlink({ link: node.url, children: runsFrom(docx, node.children, linkMarks, linkStyle) })];
+      }
       default:
-        return node.children ? runsFrom(docx, node.children, marks) : [];
+        return node.children ? runsFrom(docx, node.children, marks, linkStyle) : [];
     }
   });
 }
@@ -111,7 +119,7 @@ function resumeDocument(docx, markdown, rawStyle) {
       children.push(new Paragraph({
         alignment: align,
         spacing: { after: pt(headline ? 2 : 4) },
-        children: runsFrom(docx, node.children, { color: muted, ...(headline ? { size: halfPoints(s.body.size + 2) } : {}) }),
+        children: runsFrom(docx, node.children, { color: muted, ...(headline ? { size: halfPoints(s.body.size + 2) } : {}) }, s.link),
       }));
       continue;
     }
@@ -133,19 +141,19 @@ function resumeDocument(docx, markdown, rawStyle) {
         keepNext: true,
         tabStops: [{ type: TabStopType.RIGHT, position: contentWidth }],
         children: [
-          ...runsFrom(docx, left, { bold: true }),
+          ...runsFrom(docx, left, { bold: true }, s.link),
           ...(right ? [new TextRun({ children: [new Tab(), right], color: muted })] : []),
         ],
       }));
       continue;
     }
     if (node.type === 'paragraph') {
-      children.push(new Paragraph({ spacing: { after: pt(isItalicLine(node) ? 1 : 4) }, children: runsFrom(docx, node.children) }));
+      children.push(new Paragraph({ spacing: { after: pt(isItalicLine(node) ? 1 : 4) }, children: runsFrom(docx, node.children, {}, s.link) }));
       continue;
     }
     if (node.type === 'list') {
       for (const item of node.children) {
-        const runs = (item.children || []).flatMap((child) => (child.type === 'paragraph' ? runsFrom(docx, child.children) : [new TextRun(plainText(child))]));
+        const runs = (item.children || []).flatMap((child) => (child.type === 'paragraph' ? runsFrom(docx, child.children, {}, s.link) : [new TextRun(plainText(child))]));
         children.push(new Paragraph({ bullet: { level: 0 }, spacing: { after: pt(1) }, children: runs }));
       }
     }

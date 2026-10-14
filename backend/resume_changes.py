@@ -83,7 +83,8 @@ def _whole_passage(start: int, end: int, passage_starts: list[int]):
 def _units(markdown: str):
     """Comparable units of the tailored resume: one per non-empty line."""
     section = ""
-    for index, raw in enumerate((markdown or "").split("\n")):
+    clean_markdown = (markdown or "").replace("\r\n", "\n").replace("\r", "\n")
+    for index, raw in enumerate(clean_markdown.split("\n")):
         line = raw.strip()
         if not line:
             continue
@@ -181,6 +182,8 @@ def _new_terms(tailored_display, original_vocabulary):
 
 
 def compare_resumes(original_text: str, tailored_markdown: str) -> dict:
+    original_text = (original_text or "").replace("\r\n", "\n").replace("\r", "\n")
+    tailored_markdown = (tailored_markdown or "").replace("\r\n", "\n").replace("\r", "\n")
     original_display, passage_starts = _original_tokens(original_text)
     original_norm = [_normalise_token(token) for token in original_display]
     original_vocabulary = set(original_norm)

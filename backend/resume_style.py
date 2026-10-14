@@ -260,6 +260,61 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
     right_starts = [line for line in lines if line["x"] > width * 0.42 and len(line["text"]) > 25]
     two_column = len(right_starts) >= 6
 
+    # Link styling: check annotations and URL/contact text runs to see whether
+    # links in the original resume were explicitly colored blue or underlined.
+    link_annots = []
+    try:
+        annots = page.get("/Annots")
+        if annots:
+            for annot_ref in annots:
+                annot = annot_ref.get_object() if hasattr(annot_ref, "get_object") else annot_ref
+                if isinstance(annot, dict) and annot.get("/Subtype") == "/Link":
+                    rect = annot.get("/Rect")
+                    if rect and len(rect) == 4:
+                        bs = annot.get("/BS")
+                        bs_obj = bs.get_object() if hasattr(bs, "get_object") else bs
+                        is_annot_u = isinstance(bs_obj, dict) and bs_obj.get("/S") == "/U"
+                        link_annots.append({"rect": [float(c) for c in rect], "underlined": is_annot_u})
+    except Exception:
+        pass
+
+    link_runs = []
+    link_underlined = any(la.get("underlined") for la in link_annots)
+    link_pattern = re.compile(
+        r"@|[a-zA-Z0-9-]+\.(?:com|org|in|io|dev|net|me|ai|edu)|linkedin|github|portfolio|gitlab|http",
+        re.IGNORECASE
+    )
+
+    for run in runs:
+        rx, ry = run["x"], run["y"]
+        is_annot_link = False
+        for la in link_annots:
+            r = la["rect"]
+            x_min, x_max = min(r[0], r[2]), max(r[0], r[2])
+            y_min, y_max = min(r[1], r[3]), max(r[1], r[3])
+            if (x_min - 4 <= rx <= x_max + 4) and (y_min - 4 <= ry <= y_max + 4):
+                is_annot_link = True
+                break
+
+        if is_annot_link or bool(link_pattern.search(run["text"])):
+            link_runs.append(run)
+            if not link_underlined:
+                for rule in rules:
+                    if -5.0 <= (rule["y"] - ry) <= 2.0:
+                        if rule["x"] <= rx + 20 and (rule["x"] + rule["width"]) >= rx - 5:
+                            link_underlined = True
+                            break
+
+    blue_colors = []
+    for lr in link_runs:
+        c = lr.get("color")
+        if c:
+            r, g, b = c
+            if (b > r + 0.08) and (b > g + 0.04) and (b >= 0.22) and (_saturation(c) > 0.15) and (_lightness(c) < 0.85):
+                blue_colors.append(c)
+
+    link_color = _mode(blue_colors) if blue_colors else None
+
     def clamp(value, low, high):
         return round(max(low, min(high, value)), 1)
 
@@ -282,6 +337,10 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
             "color": colour_or_none(name_line["color"]),
         },
         "accent": _hex(accent),
+        "link": {
+            "color": colour_or_none(link_color),
+            "underline": link_underlined,
+        },
         "line_spacing": line_spacing,
         "two_column": two_column,
     }

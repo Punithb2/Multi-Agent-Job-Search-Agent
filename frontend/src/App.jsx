@@ -15,7 +15,7 @@ import { fetchSearchHistory, recordSearch } from './lib/searchHistory';
 import { fetchSavedJobs, jobKey, removeSavedJob, saveJob, updateSavedJob } from './lib/savedJobs';
 import { api, describeRequestError, isSignInError, wakeBackend } from './lib/api';
 import { deleteDocuments, fetchDocuments, fetchMaterialsForJob, saveMaterial } from './lib/materials';
-import { applyFix, changeKey } from './lib/resumeReview';
+import { applyFix, changeKey, REVERTIBLE_KINDS } from './lib/resumeReview';
 import { downloadResume, fetchProfile, needsOnboarding, removeResume, saveProfile, uploadResume } from './lib/profile';
 import './App.css';
 
@@ -399,6 +399,40 @@ function App() {
     setReview((current) => ({ ...current, error: '', changes: current.changes && { ...current.changes, items: current.changes.items.filter((entry) => changeKey(entry) !== changeKey(item)) } }));
   };
 
+  const revertAllResumeChanges = () => {
+    const items = review.changes?.items || [];
+    const revertible = items.filter((item) => item.type === 'modified' && REVERTIBLE_KINDS.has(item.kind));
+    if (!revertible.length) return;
+
+    let currentText = materials.resume_tailor || '';
+    const appliedKeys = new Set();
+
+    for (const item of revertible) {
+      const updated = applyFix(currentText, item, 'revert');
+      if (updated !== null) {
+        currentText = updated;
+        appliedKeys.add(changeKey(item));
+      }
+    }
+
+    if (appliedKeys.size > 0) {
+      storeTailoredResume(currentText);
+      setReview((current) => ({
+        ...current,
+        error: '',
+        changes: current.changes && {
+          ...current.changes,
+          items: current.changes.items.filter((entry) => !appliedKeys.has(changeKey(entry))),
+        },
+      }));
+    } else {
+      setReview((current) => ({
+        ...current,
+        error: 'Could not revert changes because the resume text was modified. Compare again to refresh.',
+      }));
+    }
+  };
+
   const dismissResumeChange = (item) => setReview((current) => ({
     ...current,
     changes: current.changes && { ...current.changes, items: current.changes.items.filter((entry) => changeKey(entry) !== changeKey(item)) },
@@ -754,7 +788,7 @@ function App() {
         onToggleSave={toggleSaveJob}
       />
     )}
-    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} resume={resume} setResume={attachResume} resumeFromProfile={resumeFromProfile} onManageResume={goToProfile} recipient={emailRecipient} onChangeRecipient={setEmailRecipient} onNewJob={() => { startNewCustomJob(); goTo('custom'); }} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} review={review} onCheckChanges={checkResumeChanges} onFixChange={fixResumeChange} onDismissChange={dismissResumeChange} onSaveResume={saveEditedResume} />}
+    {page === 'job' && <JobTailoringPage job={selectedJob} materials={materials} documentStyle={documentStyle} loading={loading} error={error} resume={resume} setResume={attachResume} resumeFromProfile={resumeFromProfile} onManageResume={goToProfile} recipient={emailRecipient} onChangeRecipient={setEmailRecipient} onNewJob={() => { startNewCustomJob(); goTo('custom'); }} backLabel={{ saved: 'Saved jobs', history: 'Back to history', custom: 'Edit job details' }[studioOrigin] || 'All job matches'} onBack={() => goTo(studioOrigin)} onGenerate={generateMaterial} review={review} onCheckChanges={checkResumeChanges} onFixChange={fixResumeChange} onRevertAll={revertAllResumeChanges} onDismissChange={dismissResumeChange} onSaveResume={saveEditedResume} />}
     {page === 'auth' && (
       <AuthPage
         key={authMode}

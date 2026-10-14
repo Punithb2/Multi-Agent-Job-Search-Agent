@@ -27,11 +27,20 @@ export function resolveStyle(style) {
   const lineHeight = source.line_spacing
     ? Math.min(1.6, Math.max(0.9, source.line_spacing / naturalRatio))
     : 1.12;
+  const isOriginalLinkColor = Boolean(source.link?.color);
+  const linkColor = isOriginalLinkColor ? source.link.color : (body.color || DEFAULT_STYLE.body.color);
+  const linkUnderline = Boolean(source.link?.underline);
+
   return {
     matched: hasStyle,
     pageSize: source.page_size === 'LETTER' ? 'LETTER' : 'A4',
     margin: Number(source.margin) || DEFAULT_STYLE.margin,
     accent: source.accent || (hasStyle ? null : DEFAULT_STYLE.accent),
+    link: {
+      color: linkColor,
+      underline: linkUnderline,
+      isColored: isOriginalLinkColor,
+    },
     lineHeight,
     body: { ...body, fontKey: bodyFontKey, color: body.color || DEFAULT_STYLE.body.color },
     name: { ...name, fontKey: hasStyle ? resolveFontKey(name.font || body.font) : DEFAULT_FONT, color: name.color || body.color || DEFAULT_STYLE.name.color },
@@ -95,7 +104,7 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
     if (nameSeen && !sectionSeen && node.type === 'paragraph') {
       const headline = isItalicLine(node);
       content.push({
-        text: inlineRuns(node.children, {}, s.accent || muted),
+        text: inlineRuns(node.children, {}, s.link),
         color: muted,
         alignment: s.name.align,
         ...(headline ? { fontSize: bodySize + 2 } : {}),
@@ -126,7 +135,7 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
       const { left, right } = splitHeadingChildren(node.children);
       content.push({
         columns: [
-          { text: inlineRuns(left, { bold: true }, s.accent || muted), width: '*' },
+          { text: inlineRuns(left, { bold: true }, s.link), width: '*' },
           ...(right ? [{ text: right, width: 'auto', alignment: 'right', color: muted }] : []),
         ],
         columnGap: 12,
@@ -139,7 +148,7 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
       // The italic second line of an entry (role, degree) sits tight under it.
       const secondLine = isItalicLine(node);
       content.push({
-        text: inlineRuns(node.children, {}, s.accent || muted),
+        text: inlineRuns(node.children, {}, s.link),
         margin: [0, 0, 0, secondLine ? g(1) : g(4)],
       });
       continue;
@@ -147,7 +156,7 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
 
     if (node.type === 'list') {
       const items = node.children.map((item) => ({
-        text: (item.children || []).flatMap((child) => (child.type === 'paragraph' ? inlineRuns(child.children, {}, s.accent || muted) : [{ text: plainText(child) }])),
+        text: (item.children || []).flatMap((child) => (child.type === 'paragraph' ? inlineRuns(child.children, {}, s.link) : [{ text: plainText(child) }])),
         margin: [0, 0, 0, g(0.5)],
       }));
       content.push({ ...(node.ordered ? { ol: items } : { ul: items }), margin: [0, g(1), 0, g(4)] });
