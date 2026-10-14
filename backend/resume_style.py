@@ -260,6 +260,17 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
     right_starts = [line for line in lines if line["x"] > width * 0.42 and len(line["text"]) > 25]
     two_column = len(right_starts) >= 6
 
+    # Body text alignment: detect if multi-line body paragraphs are justified to the right margin.
+    rule_rights = [r["x"] + r["width"] for r in rules if r["width"] > width * 0.5]
+    right_margin = max(rule_rights) if rule_rights else (width - left_margin)
+    long_body_lines = [l for l in lines if abs(l["x"] - left_margin) < 15 and len(l["text"]) > 40]
+    flush_right_count = sum(
+        1 for l in long_body_lines
+        if abs(right_margin - (l["runs"][-1]["x"] + len(l["runs"][-1]["text"]) * l["runs"][-1]["size"] * 0.5)) <= 28
+    )
+    body_justified = (flush_right_count / len(long_body_lines)) >= 0.38 if long_body_lines else False
+    body_align = "justify" if body_justified else "left"
+
     # Link styling: check annotations and URL/contact text runs to see whether
     # links in the original resume were explicitly colored blue or underlined.
     link_annots = []
@@ -327,7 +338,7 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
         "pages": len(reader.pages),
         "page_size": "LETTER" if abs(width - 612) < 6 and abs(height - 792) < 6 else "A4",
         "margin": clamp(left_margin, 24, 90),
-        "body": {"font": body_font, "size": clamp(body_size, 8.5, 12.5), "color": colour_or_none(body_color)},
+        "body": {"font": body_font, "size": clamp(body_size, 8.5, 12.5), "color": colour_or_none(body_color), "align": body_align},
         "name": {
             "font": name_line["font"],
             "size": clamp(name_line["size"], body_size, 32),

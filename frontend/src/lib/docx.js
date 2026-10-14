@@ -82,6 +82,16 @@ const isItalicLine = (node) => {
   return children.length === 1 && children[0].type === 'emphasis';
 };
 
+const isSkillsLine = (node) => {
+  const firstChild = (node.children || [])[0];
+  if (!firstChild) return false;
+  if (firstChild.type === 'strong') {
+    const text = plainText(firstChild);
+    return text.includes(':') || text.endsWith(':');
+  }
+  return false;
+};
+
 function sectionProperties(style) {
   const size = PAGE_TWIPS[style.pageSize] || PAGE_TWIPS.A4;
   const margin = pt(style.margin);
@@ -148,13 +158,26 @@ function resumeDocument(docx, markdown, rawStyle) {
       continue;
     }
     if (node.type === 'paragraph') {
-      children.push(new Paragraph({ spacing: { after: pt(isItalicLine(node) ? 1 : 4) }, children: runsFrom(docx, node.children, {}, s.link) }));
+      const secondLine = isItalicLine(node);
+      const isSkill = isSkillsLine(node);
+      const shouldJustify = !secondLine && !isSkill && (s.body.align !== 'left');
+      children.push(new Paragraph({
+        ...(shouldJustify ? { alignment: AlignmentType.JUSTIFIED } : {}),
+        spacing: { after: pt(secondLine ? 1 : 4) },
+        children: runsFrom(docx, node.children, {}, s.link),
+      }));
       continue;
     }
     if (node.type === 'list') {
+      const isJustified = s.body.align !== 'left';
       for (const item of node.children) {
         const runs = (item.children || []).flatMap((child) => (child.type === 'paragraph' ? runsFrom(docx, child.children, {}, s.link) : [new TextRun(plainText(child))]));
-        children.push(new Paragraph({ bullet: { level: 0 }, spacing: { after: pt(1) }, children: runs }));
+        children.push(new Paragraph({
+          bullet: { level: 0 },
+          ...(isJustified ? { alignment: AlignmentType.JUSTIFIED } : {}),
+          spacing: { after: pt(1) },
+          children: runs,
+        }));
       }
     }
   }

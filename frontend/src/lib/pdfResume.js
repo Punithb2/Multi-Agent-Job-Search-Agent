@@ -6,7 +6,7 @@ import { NO_LIGATURES, PAGE_WIDTHS, horizontalRule, inlineRuns, parseMarkdown, p
 const DEFAULT_STYLE = {
   page_size: 'A4',
   margin: 50,
-  body: { font: DEFAULT_FONT, size: 10.5, color: '#1f2a3d' },
+  body: { font: DEFAULT_FONT, size: 10.5, color: '#1f2a3d', align: 'justify' },
   name: { font: DEFAULT_FONT, size: 21, bold: true, uppercase: false, align: 'left', color: '#16243d' },
   heading: { font: DEFAULT_FONT, size: 11.5, bold: true, uppercase: true, color: '#1f3a5f', rule: true, rule_color: '#c9d2e0' },
   accent: '#1f3a5f',
@@ -16,6 +16,7 @@ const DEFAULT_STYLE = {
 export function resolveStyle(style) {
   const source = style || {};
   const body = { ...DEFAULT_STYLE.body, ...source.body };
+  const bodyAlign = source.body?.align || DEFAULT_STYLE.body.align || 'justify';
   const name = { ...DEFAULT_STYLE.name, ...source.name };
   const heading = source.heading
     ? { ...DEFAULT_STYLE.heading, ...source.heading }
@@ -42,7 +43,7 @@ export function resolveStyle(style) {
       isColored: isOriginalLinkColor,
     },
     lineHeight,
-    body: { ...body, fontKey: bodyFontKey, color: body.color || DEFAULT_STYLE.body.color },
+    body: { ...body, fontKey: bodyFontKey, color: body.color || DEFAULT_STYLE.body.color, align: bodyAlign },
     name: { ...name, fontKey: hasStyle ? resolveFontKey(name.font || body.font) : DEFAULT_FONT, color: name.color || body.color || DEFAULT_STYLE.name.color },
     heading: {
       ...heading,
@@ -59,6 +60,17 @@ export function resolveStyle(style) {
 function isItalicLine(node) {
   const children = (node.children || []).filter((child) => !(child.type === 'text' && !child.value.trim()));
   return children.length === 1 && children[0].type === 'emphasis';
+}
+
+/** Check if paragraph is a labeled skill line (e.g. "**Languages:** Python"). */
+function isSkillsLine(node) {
+  const firstChild = (node.children || [])[0];
+  if (!firstChild) return false;
+  if (firstChild.type === 'strong') {
+    const text = plainText(firstChild);
+    return text.includes(':') || text.endsWith(':');
+  }
+  return false;
 }
 
 // Progressively tighter layouts, used when the tailored resume runs longer than
@@ -154,16 +166,21 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
     if (node.type === 'paragraph') {
       // The italic second line of an entry (role, degree) sits tight under it.
       const secondLine = isItalicLine(node);
+      const isSkill = isSkillsLine(node);
+      const shouldJustify = !secondLine && !isSkill && (s.body.align !== 'left');
       content.push({
         text: inlineRuns(node.children, {}, s.link),
+        alignment: shouldJustify ? 'justify' : 'left',
         margin: [0, 0, 0, secondLine ? g(1) : g(4)],
       });
       continue;
     }
 
     if (node.type === 'list') {
+      const isJustified = s.body.align !== 'left';
       const items = node.children.map((item) => ({
         text: (item.children || []).flatMap((child) => (child.type === 'paragraph' ? inlineRuns(child.children, {}, s.link) : [{ text: plainText(child) }])),
+        alignment: isJustified ? 'justify' : 'left',
         margin: [0, 0, 0, g(0.5)],
       }));
       content.push({ ...(node.ordered ? { ol: items } : { ul: items }), margin: [0, g(1), 0, g(4)] });

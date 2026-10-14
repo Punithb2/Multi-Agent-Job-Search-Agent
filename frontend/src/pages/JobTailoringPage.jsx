@@ -6,7 +6,7 @@ import ResumeReview, { ResumeEditor } from '../components/ResumeReview';
 import ColdEmailPanel from '../components/ColdEmailPanel';
 import { downloadMaterialDocx } from '../lib/docx';
 import { downloadMaterialPdf } from '../lib/pdf';
-import { normalizeMarkdown } from '../lib/pdfMarkdown';
+import { normalizeMarkdown, plainText } from '../lib/pdfMarkdown';
 
 const materialOptions = [
   { id: 'skill_gap', title: 'Skill gap', text: 'See the strongest gaps, risks, and project suggestions for this role.' },
@@ -86,6 +86,26 @@ export default function JobTailoringPage({
     const isOriginalUnderlined = Boolean(documentStyle?.link?.underline);
 
     return {
+      p: ({ node, children, ...props }) => {
+        let alignStyle = undefined;
+        if (isResume) {
+          const raw = String(node ? plainText(node) : '').trim();
+          const isContact = raw.includes('|') && (raw.includes('@') || raw.includes('.com') || raw.includes('.in') || raw.includes('.me') || raw.includes('github') || raw.includes('linkedin'));
+          const isItalic = node?.children?.length === 1 && (node.children[0].type === 'emphasis' || node.children[0].tagName === 'em');
+          const isSkill = raw.startsWith('**') && raw.includes(':');
+          if (isContact) {
+            alignStyle = { textAlign: documentStyle?.name?.align || 'center' };
+          } else if (isItalic || isSkill) {
+            alignStyle = { textAlign: 'left' };
+          } else {
+            alignStyle = { textAlign: 'justify' };
+          }
+        }
+        return <p style={alignStyle} {...props}>{children}</p>;
+      },
+      li: ({ children, ...props }) => {
+        return <li style={isResume ? { textAlign: 'justify' } : undefined} {...props}>{children}</li>;
+      },
       a: ({ href, children, ...props }) => {
         const raw = String(href || '').trim();
         const targetUrl = /^(https?:\/\/|mailto:|tel:)/i.test(raw)
