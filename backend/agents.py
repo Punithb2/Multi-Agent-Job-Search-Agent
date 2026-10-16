@@ -551,88 +551,69 @@ def resume_tailor_node(state: AgentState):
     prompt = f"""
 You tailor a candidate's resume for a job they are applying to.
 
-Your mission:
-1. TAILOR THE CONTENT: Reword and reorder bullet points to highlight the candidate's qualifications, technologies, and achievements that are most relevant to the target job, incorporating the job description's terminology where it truthfully applies.
-2. PRESERVE THE CANDIDATE'S ORIGINAL STYLE & FORMATTING: Every user has their own unique resume design, formatting conventions, delimiters, and visual structure. Faithfully mirror and preserve the candidate's exact formatting patterns, layout style, and design choices rather than imposing a generic template.
+CRITICAL ANTI-FABRICATION DIRECTIVE — ZERO INVENTIONS:
+The candidate will be evaluated during background checks and technical interviews. If you invent projects, tasks, domains, metrics, or technologies the candidate never worked on, IT IS CONSIDERED RESUME FRAUD. You must remain 100% faithful to the candidate's real experiences.
 
-Content rules:
-- Keep every fact true to the original resume. Never invent employers, roles,
-  dates, degrees, grades, projects, metrics, or skills.
-- Preserve all contact details, profiles, and links from the original resume (email,
-  LinkedIn, GitHub, portfolio, personal website, project repositories, or live demos).
-  Never remove, omit, or replace them with unclickable plain text.
-- Reorder and reword bullet points so the experience most relevant to this job
-  comes first, using the job description's terminology where it honestly applies.
-- Never change what a product, project, or system actually was: keep its domain,
-  purpose, and name (a "proctoring platform" stays a proctoring platform, an
-  "anti-cheating system" stays an anti-cheating system). Only rephrase how the
-  candidate's work on it is described.
-- Keep the original resume's sections, in the original order, using their exact original
-  section headings and capitalization.
-- If the original has a summary or objective, tailor it as a concise professional summary
-  highlighting the candidate's strengths for this kind of work, while retaining the original's
-  format (paragraph vs bullets).
-- NEVER mention the target company's name or the exact job title being applied
-  for anywhere in the resume. A resume describes the candidate; naming the
-  employer or the position belongs in the cover letter.
-- Leave dates exactly as written in the original, even if they look inconsistent.
+STRICT GROUNDING & MAPPING RULES:
+1. 1-to-1 BULLET INTEGRITY:
+   - Every single bullet point in the tailored resume MUST be a direct, faithful reformulation of an existing bullet point from that specific entry in the original resume.
+   - Output the EXACT same number of bullet points as the original resume has for each employer and project (if an entry has 4 bullets in the original, output exactly 4 bullets; do not combine, delete, or create extra bullets).
+2. PRESERVE DOMAINS & REAL SYSTEMS:
+   - Keep what every system, product, or application actually was (e.g., if the candidate built a "remote proctoring platform" with Django, WebSockets, Kafka, Redis, and LiveKit, EVERY bullet must remain about that remote proctoring platform!).
+   - ABSOLUTELY NEVER change the domain to match the target job (e.g., NEVER convert a proctoring platform, backend service, or image reconstruction project into "financial planning & analysis (FP&A)", "RAG pipelines", "biotech", etc., unless the original bullet explicitly says so).
+   - NEVER transfer tools or tasks between sections (e.g., if a tool like LangGraph or RAG is mentioned in a personal project, do NOT claim the candidate used it at their employer).
+3. PERMITTED TAILORING ACTIONS (WHAT YOU ARE SUPPOSED TO DO):
+   - BULLET REORDERING: Within an entry, move the candidate's most relevant existing responsibilities to the top of that entry.
+   - POLISH & EMPHASIZE IMPACT: Refine the action verbs and technical phrasing of the candidate's REAL work to highlight overlapping engineering qualities (e.g., architectural scalability, low-latency APIs, event streaming, concurrency, query optimization, robust design).
+   - CAREER OBJECTIVE / SUMMARY: Adapt the summary to connect the candidate's genuine background to the target role's domain, without claiming fake job titles or fake employers.
+   - SKILLS REORDERING: Within existing categories in TECHNICAL SKILLS, reorder items so matching technologies appear first. NEVER invent new skills the candidate does not have.
+4. PRESERVE ALL ORIGINAL LINKS & METADATA:
+   - Keep all contact details, profiles, and demo links ([DEMO](url), GitHub, LinkedIn, portfolio) clickable on ONE single line separated by " | ".
+   - Leave dates, degrees, institutions, and grades exactly as written in the original.
+   - NEVER mention the target employer's company name or job ID in the resume body.
 
 Output format: Valid Markdown adhering strictly to this syntax:
 - "# " before the candidate's name.
-- A headline under the name only if the original resume includes one, wrapped in single asterisks (*Headline*).
-- The contact details on ONE single line, separated by " | ". Format emails and profile/portfolio URLs as clickable Markdown links [text](url) (e.g. [punithb165@gmail.com](mailto:punithb165@gmail.com), [linkedin.com/in/username](https://linkedin.com/in/username), [github.com/username](https://github.com/username)). Never put contact items on separate lines. Do not use unicode arrows like "↗" or emojis (use clean text like "[DEMO](url)" instead of "[DEMO ↗](url)"). All web URLs must begin with "https://" or "http://".
-- "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS"). You must always prepend "## " to every section title.
+- Headline under the name only if in original, wrapped in single asterisks (*Headline*).
+- Contact details on ONE single line, separated by " | ", with clickable markdown links.
+- "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS").
 - "### " before the first line of every entry:
-  * For jobs: "### Role / Title | Dates | Location" (e.g. "### Python Developer Intern | 02/2026 – 05/2026 | Bengaluru")
-  * The employer / company on the second line wrapped in single asterisks (e.g. "*PyGenicArc*"). Never invent additional lines or role descriptions like "Role: Backend Developer".
-  * For projects: "### Project Name | [DEMO](url)" followed by the tech stack on the second line in italics (e.g. "*Python, FastAPI, React...*").
-  * For education: "### School / Institution | Dates | Location" followed by the degree and grade on the second line in italics (e.g. "*B E in Computer Science and Engineering - 8.04 CGPA*").
-  * For certifications: "### [Course / Specialization](url) — Organization | Issued: Month Year".
-- In skills sections: use the candidate's original delimiter (use colons: "**Programming Languages:** Python", "**Database:** SQL, PostgreSQL").
-- Where the original uses bullet points, use "- " for each bullet.
-- Where the original describes something in a paragraph (such as the Career Objective), keep it as a paragraph.
-- Keep the resume about as long as the original, so it cleanly fits onto 1 page.
+  * For jobs: "### Role / Title | Dates | Location" followed by employer on second line in italics (*Company*).
+  * For projects: "### Project Name | [DEMO](url)" followed by tech stack on second line in italics (*Tech Stack*).
+  * For education: "### School / Institution | Dates | Location" followed by degree/grade in italics.
+  * For certifications: "### [Course](url) — Organization | Issued: Month Year".
+- Bullet points must start with "- ".
+- Paragraphs (like Career Objective) must stay as paragraphs.
 
-Example of the required syntax structure:
-
-# Punith B
-[punithb165@gmail.com](mailto:punithb165@gmail.com) | 8088286388 | Bengaluru | [linkedin.com/in/punith-b-965100252](https://linkedin.com/in/punith-b-965100252) | [github.com/Punithb2](https://github.com/Punithb2) | [punithb.me](https://punithb.me)
+Syntax structure reference:
+# Candidate Name
+[email@example.com](mailto:email@example.com) | 1234567890 | City | [linkedin.com/in/user](https://linkedin.com) | [github.com/user](https://github.com)
 
 ## CAREER OBJECTIVE
-Computer Science and Engineering graduate with hands-on experience developing backend services and full-stack software applications...
+Paragraph describing genuine background and relevant technical focus...
 
 ## TECHNICAL SKILLS
-**Programming Languages:** Python
-**Database:** SQL, PostgreSQL, SQLAlchemy
-**Backend:** FastAPI, Django, Django REST Framework, REST APIs, WebSockets, Pytest
-**Frontend:** React, HTML, CSS
-**Tools & Infrastructure:** AWS, Git, GitHub, Docker, GitHub Actions, CI/CD
-**Applied AI:** Large Language Models(LLM), Retrieval-Augmented Generation (RAG), Embeddings, Vector Databases, LangChain
+**Category:** Skill 1, Skill 2, Skill 3
 
 ## PROFESSIONAL EXPERIENCE
-### Python Developer Intern | 02/2026 – 05/2026 | Bengaluru
-*PyGenicArc*
-- Developed, tested, and maintained server-side applications...
-- Designed, developed, and integrated RESTful APIs...
+### Title | Dates | Location
+*Company Name*
+- Bullet 1 describing real work with strong impact...
+- Bullet 2 describing real work with strong impact...
 
 ## PROJECTS
-### UptimeSentinel: Real-Time Infrastructure & Uptime Monitoring Platform | [DEMO](https://uptimesentinel.vercel.app)
-*Python, FastAPI, React, PostgreSQL(Neon), SQLAlchemy, Alembic, JWT, GitHub Actions, Vercel, Render*
-- Built a multi-user HTTP monitoring platform...
+### Project Name | [DEMO](https://example.com)
+*Tech 1, Tech 2, Tech 3*
+- Bullet 1 describing real project work...
 
 ## EDUCATIONAL BACKGROUND
-### K S School Of Engineering And Management | 12/2022 – 05/2026 | Bengaluru
-*B E in Computer Science and Engineering - 8.04 CGPA*
-
-### Narayana Pre University College | 09/2020 – 04/2022 | Bengaluru
-*PUC(PCMC) - 84.5%*
+### University Name | Dates | Location
+*Degree - Grade*
 
 ## CERTIFICATIONS
-### [Deep Learning Specialization](https://coursera.org/verify/specialization/...) — DeepLearning.AI & Stanford University (Coursera) | Issued: September 2026
-### [Machine Learning Specialization](https://coursera.org/verify/specialization/...) — DeepLearning.AI & Stanford University (Coursera) | Issued: July 2026
+### [Certification Name](https://example.com) — Issuer | Issued: Month Year
 
-Output ONLY the resume: no greeting, no notes about what changed, no text before
-or after.
+Output ONLY the raw markdown of the resume: no greeting, no conversational text before or after.
 
 Original resume:
 {state['base_resume']}
