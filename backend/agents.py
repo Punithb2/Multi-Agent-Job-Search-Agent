@@ -549,25 +549,25 @@ def resume_tailor_node(state: AgentState):
     target_job = state.get("selected_job") or {}
 
     prompt = f"""
-You tailor a candidate's resume for a job they are applying to.
+You are an expert technical resume writer and ATS optimization specialist.
 
-CRITICAL ANTI-FABRICATION DIRECTIVE — ZERO INVENTIONS:
-The candidate will be evaluated during background checks and technical interviews. If you invent projects, tasks, domains, metrics, or technologies the candidate never worked on, IT IS CONSIDERED RESUME FRAUD. You must remain 100% faithful to the candidate's real experiences.
+YOUR MISSION: Actively tailor and elevate the candidate's resume to highlight their strongest qualifications for the target job, while keeping 100% of the facts truthful.
 
-STRICT GROUNDING & MAPPING RULES:
-1. 1-to-1 BULLET INTEGRITY:
-   - Every single bullet point in the tailored resume MUST be a direct, faithful reformulation of an existing bullet point from that specific entry in the original resume.
-   - Output the EXACT same number of bullet points as the original resume has for each employer and project (if an entry has 4 bullets in the original, output exactly 4 bullets; do not combine, delete, or create extra bullets).
-2. PRESERVE DOMAINS & REAL SYSTEMS:
-   - Keep what every system, product, or application actually was (e.g., if the candidate built a "remote proctoring platform" with Django, WebSockets, Kafka, Redis, and LiveKit, EVERY bullet must remain about that remote proctoring platform!).
-   - ABSOLUTELY NEVER change the domain to match the target job (e.g., NEVER convert a proctoring platform, backend service, or image reconstruction project into "financial planning & analysis (FP&A)", "RAG pipelines", "biotech", etc., unless the original bullet explicitly says so).
-   - NEVER transfer tools or tasks between sections (e.g., if a tool like LangGraph or RAG is mentioned in a personal project, do NOT claim the candidate used it at their employer).
-3. PERMITTED TAILORING ACTIONS (WHAT YOU ARE SUPPOSED TO DO):
-   - BULLET REORDERING: Within an entry, move the candidate's most relevant existing responsibilities to the top of that entry.
-   - POLISH & EMPHASIZE IMPACT: Refine the action verbs and technical phrasing of the candidate's REAL work to highlight overlapping engineering qualities (e.g., architectural scalability, low-latency APIs, event streaming, concurrency, query optimization, robust design).
-   - CAREER OBJECTIVE / SUMMARY: Adapt the summary to connect the candidate's genuine background to the target role's domain, without claiming fake job titles or fake employers.
-   - SKILLS REORDERING: Within existing categories in TECHNICAL SKILLS, reorder items so matching technologies appear first. NEVER invent new skills the candidate does not have.
-4. PRESERVE ALL ORIGINAL LINKS & METADATA:
+CORE TAILORING INSTRUCTIONS:
+1. ACTIVELY REWORD & POLISH (Do NOT simply copy the original resume verbatim):
+   - Actively rephrase bullet points with powerful engineering action verbs (e.g., Engineered, Architected, Optimized, Streamlined, Implemented, Designed).
+   - Sharpen the language to highlight architectural scale, system performance, API reliability, and tools that match the target job description.
+   - Elevate the technical impact and clarity of what the candidate actually built.
+2. TAILOR CAREER OBJECTIVE:
+   - Rewrite the Career Objective to present the candidate as a high-fit engineer for this target role, connecting their genuine background to the opening.
+3. REORDER FOR RELEVANCE:
+   - Within each entry, place the most job-relevant bullets at the top.
+   - In TECHNICAL SKILLS, order technologies to prioritize matching tools.
+4. STRICT TRUTHFULNESS (ZERO HALLUCINATIONS):
+   - Every bullet must remain 100% grounded in the real project (PyGenicArc remains the remote proctoring platform, CareerAtlas remains the job search platform, Recon3D remains 3D reconstruction).
+   - NEVER invent new employers, fake domains (e.g., no fake finance/FP&A), or tools the candidate does not know.
+   - Maintain exact 1-to-1 bullet parity (same number of bullets per entry).
+5. PRESERVE ALL ORIGINAL LINKS & METADATA:
    - Keep all contact details, profiles, and demo links ([DEMO](url), GitHub, LinkedIn, portfolio) clickable on ONE single line separated by " | ".
    - Leave dates, degrees, institutions, and grades exactly as written in the original.
    - NEVER mention the target employer's company name or job ID in the resume body.
@@ -621,7 +621,7 @@ Original resume:
 Target job:
 {_job_for_prompt(target_job)}
 """
-    response = invoke_with_retry(llm, prompt)
+    response = invoke_with_retry(llm, prompt, temperature=0.2)
     tailored = _response_text(response.content).strip()
     tailored = re.sub(r"^```(?:markdown)?\s*\n?|\n?```$", "", tailored, flags=re.IGNORECASE).strip()
     return {"tailored_resume": tailored}
