@@ -13,3 +13,7 @@ python-dotenv==1.2.1
 # Pulled in by langchain-google-genai. Pinned because the app imports
 # google.api_core.exceptions.ResourceExhausted directly.
 google-api-core==2.25.2
+
+# Mistral AI high-limit tier provider
+mistralai==3.2.0
+langchain-mistralai==1.1.6

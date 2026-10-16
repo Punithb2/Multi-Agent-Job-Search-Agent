@@ -22,8 +22,14 @@ services:
       # application logs never appear in the Render dashboard.
       - key: PYTHONUNBUFFERED
         value: "1"
-      - key: GEMINI_API_KEY
+      - key: MISTRAL_API_KEY
         sync: false           # entered in the Render dashboard
+      - key: LLM_PROVIDER
+        value: "mistral"
+      - key: MISTRAL_MODEL
+        value: "codestral-2508"
+      - key: GEMINI_API_KEY
+        sync: false           # entered in the Render dashboard (fallback)
       - key: RAPIDAPI_KEY
         sync: false           # entered in the Render dashboard
       - key: FRONTEND_ORIGINS

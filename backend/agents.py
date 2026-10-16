@@ -1,39 +1,70 @@
 import os
+import sys
 import time
 import requests
 import json
 import re
+
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 from typing import Any
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
+
+try:
+    from langchain_mistralai import ChatMistralAI
+except ImportError:
+    ChatMistralAI = None
+
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+except ImportError:
+    ChatGoogleGenerativeAI = None
 
 from security import DailyBudgetExceeded, gemini_budget, jsearch_budget
 from state import AgentState
 
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(_backend_dir, ".env"))
 load_dotenv()
 
-# Google AI Studio calls this key GEMINI_API_KEY, while langchain reads
-# GOOGLE_API_KEY. Accept either name and normalise, so a deployment cannot
-# silently fall back to non-AI ranking just because the variable was named
-# the other way round.
+_mistral_key = os.getenv("MISTRAL_API_KEY")
 _gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-if _gemini_key:
-    os.environ["GOOGLE_API_KEY"] = _gemini_key
+
+LLM_PROVIDER = os.getenv("LLM_PROVIDER")
+if not LLM_PROVIDER:
+    if _mistral_key and ChatMistralAI:
+        LLM_PROVIDER = "mistral"
+    elif _gemini_key and ChatGoogleGenerativeAI:
+        LLM_PROVIDER = "gemini"
+    else:
+        LLM_PROVIDER = "none"
+
+if LLM_PROVIDER == "mistral":
+    MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "codestral-2508")
+    llm = ChatMistralAI(
+        model=MISTRAL_MODEL,
+        mistral_api_key=_mistral_key,
+        temperature=0.0
+    )
+    print(f"[LLM] Active Provider: Mistral AI ({MISTRAL_MODEL}) - High Limit Tier (125 RPM / 625k TPM)")
+elif LLM_PROVIDER == "gemini":
+    if _gemini_key:
+        os.environ["GOOGLE_API_KEY"] = _gemini_key
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    llm = ChatGoogleGenerativeAI(
+        model=GEMINI_MODEL,
+        temperature=0.0
+    )
+    print(f"Gemini model: {GEMINI_MODEL}")
 else:
-    print("⚠️  No GEMINI_API_KEY / GOOGLE_API_KEY set. AI ranking and tailoring will fail.")
+    llm = None
+    print("[WARN] No MISTRAL_API_KEY or GEMINI_API_KEY configured. AI features will fail.")
 
-# Flash Lite models get a far larger free-tier allowance than the full Flash
-# models (500 requests/day and 15/minute, against 20/day and 5/minute), which is
-# what keeps this app usable on a free key. Override with GEMINI_MODEL to try a
-# different one without touching code.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-
-llm = ChatGoogleGenerativeAI(
-    model=GEMINI_MODEL,
-    temperature=0.0
-)
-print(f"Gemini model: {GEMINI_MODEL}")
 
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 JSEARCH_HOST = "jsearch.p.rapidapi.com"
@@ -42,36 +73,37 @@ JSON_GENERATION_CONFIG = {"response_mime_type": "application/json"}
 
 
 def _is_quota_error(error):
-    """True for Gemini 429 / RESOURCE_EXHAUSTED, however the SDK wrapped it."""
+    """True for 429 / RESOURCE_EXHAUSTED / RateLimit error across Gemini and Mistral."""
     if isinstance(error, ResourceExhausted):
         return True
     text = str(error).lower()
-    return "resource_exhausted" in text or "429" in text
+    return "resource_exhausted" in text or "429" in text or "rate limit" in text or "ratelimit" in text
 
 
 def _is_daily_quota_error(error):
-    """True when the exhausted quota is a per-day one.
-
-    Per-minute limits clear in seconds and are worth waiting for. A daily quota
-    will not recover during this request, so retrying only makes the user wait
-    45 seconds for a failure we already know is coming.
-    """
+    """True when the exhausted quota is a per-day one."""
     text = str(error).lower().replace(" ", "").replace("_", "")
     return "perday" in text or "requestsperday" in text
 
 
 def invoke_with_retry(chain, prompt, max_retries=2, base_delay=8, **invoke_kwargs):
+    kwargs = dict(invoke_kwargs)
+    # Adapt Gemini-specific JSON configuration to standard response_format for Mistral
+    if ChatMistralAI and isinstance(chain, ChatMistralAI):
+        if "generation_config" in kwargs:
+            kwargs.pop("generation_config")
+            kwargs["response_format"] = {"type": "json_object"}
+
     for attempt in range(max_retries):
-        # Every attempt is a billable Gemini request, so each one draws on the
-        # shared daily budget. Raises DailyBudgetExceeded once it is spent.
-        gemini_budget.spend()
+        if LLM_PROVIDER == "gemini":
+            gemini_budget.spend()
         try:
-            return chain.invoke(prompt, **invoke_kwargs)
+            return chain.invoke(prompt, **kwargs)
         except Exception as error:
             if not _is_quota_error(error):
                 raise
             if _is_daily_quota_error(error):
-                print("Gemini daily free-tier quota is exhausted. Falling back immediately.")
+                print("Daily free-tier quota is exhausted. Falling back immediately.")
                 raise
             if attempt == max_retries - 1:
                 raise
@@ -609,7 +641,9 @@ Target job:
 {_job_for_prompt(target_job)}
 """
     response = invoke_with_retry(llm, prompt)
-    return {"tailored_resume": _response_text(response.content)}
+    tailored = _response_text(response.content).strip()
+    tailored = re.sub(r"^```(?:markdown)?\s*\n?|\n?```$", "", tailored, flags=re.IGNORECASE).strip()
+    return {"tailored_resume": tailored}
 
 
 def cover_letter_node(state: AgentState):
@@ -651,7 +685,9 @@ Target job:
 {_job_for_prompt(target_job)}
 """
     response = invoke_with_retry(llm, prompt)
-    return {"cover_letter": _response_text(response.content)}
+    letter = _response_text(response.content).strip()
+    letter = re.sub(r"^```(?:markdown|text)?\s*\n?|\n?```$", "", letter, flags=re.IGNORECASE).strip()
+    return {"cover_letter": letter}
 
 
 def cold_email_node(state: AgentState):
@@ -695,4 +731,6 @@ Target job:
 {_job_for_prompt(target_job)}
 """
     response = invoke_with_retry(llm, prompt)
-    return {"cold_email": _response_text(response.content)}
+    email = _response_text(response.content).strip()
+    email = re.sub(r"^```(?:markdown|text)?\s*\n?|\n?```$", "", email, flags=re.IGNORECASE).strip()
+    return {"cold_email": email}

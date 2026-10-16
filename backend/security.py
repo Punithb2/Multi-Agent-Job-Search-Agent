@@ -22,6 +22,11 @@ from datetime import datetime, timezone
 
 import requests
 from fastapi import HTTPException, Request
+from dotenv import load_dotenv
+
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(_backend_dir, ".env"))
+load_dotenv()
 
 
 def _env_int(name: str, default: int) -> int:
@@ -149,8 +154,8 @@ BUDGET_MESSAGES = {
 
 # --- Sign-in verification ----------------------------------------------------
 
-SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").strip().rstrip("/")
-SUPABASE_ANON_KEY = (os.getenv("SUPABASE_ANON_KEY") or "").strip()
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL") or "").strip().rstrip("/")
+SUPABASE_ANON_KEY = (os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY") or "").strip()
 AUTH_CONFIGURED = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
 TOKEN_CACHE_SECONDS = 300
 
@@ -209,4 +214,4 @@ def require_user(request: Request) -> str:
 
 
 if not AUTH_CONFIGURED:
-    print("⚠️  SUPABASE_URL / SUPABASE_ANON_KEY are not set: sign-in is NOT enforced on document generation.")
+    print("[WARN] SUPABASE_URL / SUPABASE_ANON_KEY are not set: sign-in is NOT enforced on document generation.")
