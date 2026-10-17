@@ -544,44 +544,77 @@ def _job_for_prompt(job: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _job_for_resume_tailor(job: dict[str, Any]) -> str:
+    """The job details relevant to tailoring, omitting company name.
+
+    Resumes are candidate-centric professional documents, not cover letters.
+    Omitting company name from the prompt prevents the model from hallucinating
+    the employer's name or proprietary slogans into the resume or Career Objective.
+    """
+    lines = [
+        f"Title: {job.get('title') or 'Not stated'}",
+        f"Location: {job.get('location') or 'Not stated'}",
+    ]
+    if job.get("employment_type"):
+        lines.append(f"Employment type: {job['employment_type']}")
+    lines.append("Requirements & Role Focus:")
+    lines.append(job.get("description") or "Not provided")
+    return "\n".join(lines)
+
+
 def resume_tailor_node(state: AgentState):
     print("📄 Resume Tailor: Rewriting...")
     target_job = state.get("selected_job") or {}
+    company = (target_job.get("company") or "").strip()
+    title = (target_job.get("title") or "Software Engineer").strip()
 
     prompt = f"""
 You are an expert technical resume writer and ATS optimization specialist.
 
-YOUR MISSION: Actively tailor and elevate the candidate's resume to highlight their strongest qualifications for the target job, while keeping 100% of the facts truthful.
+YOUR MISSION: Tailor and elevate the candidate's existing resume to highlight their strongest qualifications for the target role, by sharpening the language, reordering technical skills, and highlighting relevant engineering achievements — while keeping 100% of the facts truthful.
 
-CORE TAILORING INSTRUCTIONS:
-1. ACTIVELY REWORD & POLISH (Do NOT simply copy the original resume verbatim):
-   - Actively rephrase bullet points with powerful engineering action verbs (e.g., Engineered, Architected, Optimized, Streamlined, Implemented, Designed).
-   - Sharpen the language to highlight architectural scale, system performance, API reliability, and tools that match the target job description.
-   - Elevate the technical impact and clarity of what the candidate actually built.
-2. TAILOR CAREER OBJECTIVE:
-   - Rewrite the Career Objective to present the candidate as a high-fit engineer for this target role, connecting their genuine background to the opening.
-3. REORDER FOR RELEVANCE:
-   - Within each entry, place the most job-relevant bullets at the top.
-   - In TECHNICAL SKILLS, order technologies to prioritize matching tools.
-4. STRICT TRUTHFULNESS (ZERO HALLUCINATIONS):
-   - Every bullet must remain 100% grounded in the real project (PyGenicArc remains the remote proctoring platform, CareerAtlas remains the job search platform, Recon3D remains 3D reconstruction).
-   - NEVER invent new employers, fake domains (e.g., no fake finance/FP&A), or tools the candidate does not know.
-   - Maintain exact 1-to-1 bullet parity (same number of bullets per entry).
-5. PRESERVE ALL ORIGINAL LINKS & METADATA:
+CRITICAL RULES — ZERO HALLUCINATIONS & ZERO FALSE CLAIMS:
+1. NEVER INVENT OR ADD UNPOSSESSED SKILLS OR DOMAINS:
+   - In TECHNICAL SKILLS, you may ONLY include technologies and skills that already appear in the original resume.
+   - Do NOT add unpossessed tools, languages, or domains mentioned in the job description (e.g. if the job asks for Embedded Systems, C++, AUTOSAR, Kubernetes, or Angular, and the candidate does not have them in their original resume, NEVER add them to the resume!).
+   - In TECHNICAL SKILLS, keep all skill categories from the original resume. You may reorder the categories and the skills within each category so matching tools appear at the top.
+2. NEVER MENTION THE HIRING COMPANY NAME:
+   - Hiring company: "{company}".
+   - A resume is a candidate's personal professional profile, NOT a cover letter.
+   - NEVER mention "{company}" or any target company name anywhere in the resume body or Career Objective. (No "contribute to {company}", no "seeking to join {company}", etc.).
+3. NEVER INVENT YEARS OF EXPERIENCE OR SENIORITY:
+   - Do NOT invent or inflate years of experience (no "1.5 years", "2 years", "Senior" if not in original). Preserve the candidate's genuine seniority (e.g., "Computer Science and Engineering graduate").
+4. TAILOR CAREER OBJECTIVE VIA OVERLAP ONLY:
+   - Rewrite the Career Objective to highlight the intersection of the candidate's GENUINE skills with the target role.
+   - Connect their actual background (e.g., Python, React, FastAPI, PostgreSQL, APIs, automated testing) to the engineering qualities the target role needs.
+   - Focus on what the candidate CAN truthfully offer. Do NOT claim unpossessed domains or target company names.
+5. ACTIVELY REWRITE BULLETS TO HIGHLIGHT ROLE-RELEVANT IMPACT (EXACT 1-TO-1 PARITY):
+   - For every entry, you MUST keep EXACTLY the same number of bullets as the original (PyGenicArc: 4 bullets; UptimeSentinel: 4 bullets; CareerAtlas: 4 bullets).
+   - NEVER drop bullets. NEVER merge bullets.
+   - NEVER truncate sentences. Every bullet must be a complete, well-formed sentence ending with proper punctuation.
+   - ACTIVELY REWRITE each bullet using strong engineering action verbs (Engineered, Architected, Designed, Implemented, Optimized, Delivered) to emphasize the technical aspects most relevant to the target role (e.g., frontend UX/responsiveness, API performance, concurrency, test automation, system reliability) while staying 100% grounded in what the candidate actually built in that project.
+   - Example of active bullet tailoring without inventing:
+     * Original: 'Delivered real-time dashboards with latency sparklines, public status pages, automated 30-day data pruning, and a GitHub Actions CI/CD pipeline with 16 automated Pytest tests.'
+     * If Frontend role: 'Architected responsive React dashboards featuring real-time latency sparklines, public status pages, and clean UI state management integrated with backend monitoring APIs.'
+     * If Testing/Verification role: 'Engineered real-time status dashboards backed by an automated GitHub Actions CI/CD pipeline executing 16 automated Pytest verification tests.'
+     Notice: Both versions remain 100% grounded in what was built, but emphasize the angle most relevant to the target role!
+6. PRESERVE ALL ORIGINAL SECTIONS, ENTRIES, METADATA & LINKS:
+   - Include EVERY section: CAREER OBJECTIVE, TECHNICAL SKILLS, PROFESSIONAL EXPERIENCE, PROJECTS, EDUCATIONAL BACKGROUND, CERTIFICATIONS.
+   - Include EVERY project from the original resume (both UptimeSentinel and CareerAtlas).
+   - Each section heading ("## ...") must appear EXACTLY ONCE. Do NOT duplicate headings.
    - Keep all contact details, profiles, and demo links ([DEMO](url), GitHub, LinkedIn, portfolio) clickable on ONE single line separated by " | ".
-   - Leave dates, degrees, institutions, and grades exactly as written in the original.
-   - NEVER mention the target employer's company name or job ID in the resume body.
+   - Keep all dates, degrees, institutions, and grades exactly as written in the original.
 
 Output format: Valid Markdown adhering strictly to this syntax:
 - "# " before the candidate's name.
 - Headline under the name only if in original, wrapped in single asterisks (*Headline*).
 - Contact details on ONE single line, separated by " | ", with clickable markdown links.
-- "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS").
+- "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS"). Every section heading must appear exactly ONCE.
 - "### " before the first line of every entry:
   * For jobs: "### Role / Title | Dates | Location" followed by employer on second line in italics (*Company*).
   * For projects: "### Project Name | [DEMO](url)" followed by tech stack on second line in italics (*Tech Stack*).
   * For education: "### School / Institution | Dates | Location" followed by degree/grade in italics.
-  * For certifications: "### [Course](url) — Organization | Issued: Month Year".
+  * For certifications: "### [Course](url) — Organization | Issued: Month Year" (or without link if original has no link).
 - Bullet points must start with "- ".
 - Paragraphs (like Career Objective) must stay as paragraphs.
 
@@ -598,13 +631,17 @@ Paragraph describing genuine background and relevant technical focus...
 ## PROFESSIONAL EXPERIENCE
 ### Title | Dates | Location
 *Company Name*
-- Bullet 1 describing real work with strong impact...
-- Bullet 2 describing real work with strong impact...
+- Bullet 1...
+- Bullet 2...
 
 ## PROJECTS
 ### Project Name | [DEMO](https://example.com)
 *Tech 1, Tech 2, Tech 3*
-- Bullet 1 describing real project work...
+- Bullet 1...
+
+### Project Name 2 | [DEMO](https://example.com)
+*Tech 1, Tech 2, Tech 3*
+- Bullet 1...
 
 ## EDUCATIONAL BACKGROUND
 ### University Name | Dates | Location
@@ -618,13 +655,44 @@ Output ONLY the raw markdown of the resume: no greeting, no conversational text 
 Original resume:
 {state['base_resume']}
 
-Target job:
-{_job_for_prompt(target_job)}
+Target Role:
+Title: {title}
+{_job_for_resume_tailor(target_job)}
 """
-    response = invoke_with_retry(llm, prompt, temperature=0.2)
-    tailored = _response_text(response.content).strip()
-    tailored = re.sub(r"^```(?:markdown)?\s*\n?|\n?```$", "", tailored, flags=re.IGNORECASE).strip()
-    return {"tailored_resume": tailored}
+    response = invoke_with_retry(llm, prompt, temperature=0.0)
+    raw_text = _response_text(response.content).strip()
+
+    # Extract markdown block if model wrapped in ```markdown ... ```
+    match = re.search(r"```(?:markdown)?\s*\n([\s\S]*?)\n```", raw_text, flags=re.IGNORECASE)
+    if match:
+        content = match.group(1).strip()
+    else:
+        content = re.sub(r"^```(?:markdown)?\s*\n?|\n?```$", "", raw_text, flags=re.IGNORECASE).strip()
+
+    # Post-Processing Safety Guardrails:
+    # 1. Deduplicate consecutive identical section headings or plain headings followed by markdown headings
+    cleaned_lines = []
+    prev_line = None
+    for line in content.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("## ") and stripped == prev_line:
+            continue
+        if prev_line and stripped.startswith("## ") and stripped[3:].strip().upper() == prev_line.upper():
+            cleaned_lines.pop()
+        cleaned_lines.append(line)
+        if stripped:
+            prev_line = stripped
+    content = "\n".join(cleaned_lines)
+
+    # 2. Company name scrub: If target company name appears in the resume body, scrub it
+    if company and len(company) > 2:
+        pattern = re.compile(
+            rf"\b(?:to\s+contribute\s+to\s+)?{re.escape(company)}(?:'s)?(?:\s+(?:cutting-edge\s+)?transport\s+and\s+infrastructure\s+solutions)?\b",
+            re.IGNORECASE,
+        )
+        content = pattern.sub("a forward-thinking engineering team", content)
+
+    return {"tailored_resume": content}
 
 
 def cover_letter_node(state: AgentState):
