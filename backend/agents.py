@@ -607,7 +607,7 @@ CRITICAL RULES — ZERO HALLUCINATIONS & ZERO FALSE CLAIMS:
    - Each section heading ("## ...") must appear EXACTLY ONCE. Do NOT duplicate headings.
    - Keep all contact details, profiles, and demo links clickable on ONE single line separated by " | ".
    - Keep all project demo and code links and link symbols intact: `### Project Name | [DEMO ↗](url) | [GITHUB ↗](url)`. Do NOT drop the `↗` arrow or the links!
-   - Keep the company link and link symbol under experience intact: `* [Company Name 🔗](url) *` (e.g. `* [PyGenicArc 🔗](https://pygenicarc.com/) *`). Do NOT remove the company link!
+   - Keep the company link and link symbol under experience intact: `*[Company Name 🔗](url)*` (e.g. `*[PyGenicArc 🔗](https://pygenicarc.com/)*`). Do NOT add a bullet before it and do NOT put spaces inside the asterisks!
    - Keep certification links and link symbols intact: `### [Certification Name 🔗](url) — Organization | Issued: Month Year` (or `- [Certification Name 🔗](url) — Organization | Issued: Month Year`).
    - Keep all dates, degrees, institutions, and grades exactly as written in the original.
 
@@ -617,7 +617,7 @@ Output format: Valid Markdown adhering strictly to this syntax:
 - Contact details on ONE single line, separated by " | ", with clickable markdown links.
 - "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS"). Every section heading must appear exactly ONCE.
 - "### " before the first line of every entry:
-  * For jobs: "### Role / Title | Dates | Location" followed by employer/company link on second line in italics (* [Company 🔗](url) * or *Company*).
+  * For jobs: "### Role / Title | Dates | Location" followed by employer/company link on second line in italics (*[Company 🔗](url)* or *Company*). The company line MUST NOT have a bullet point!
   * For projects: "### Project Name | [DEMO ↗](url) | [GITHUB ↗](url)" followed by tech stack on second line in italics (*Tech Stack*).
   * For education: "### School / Institution | Dates | Location" followed by degree/grade in italics.
   * For certifications: "### [Course 🔗](url) — Organization | Issued: Month Year" (or bullet `- [Course 🔗](url) — Organization | Issued: Month Year`).
@@ -636,7 +636,7 @@ Paragraph describing genuine background and relevant technical focus...
 
 ## PROFESSIONAL EXPERIENCE
 ### Title | Dates | Location
-* [Company Name 🔗](https://company.com) *
+*[Company Name 🔗](https://company.com)*
 - Implemented **35+ REST API** endpoints and responsive React interfaces with **JWT authentication**...
 - Engineered live exam monitoring for **500+ concurrent sessions**...
 
@@ -697,6 +697,26 @@ Title: {title}
             re.IGNORECASE,
         )
         content = pattern.sub("a forward-thinking engineering team", content)
+
+    # 3. Clean up company lines in professional experience:
+    # If a line in experience starts with a bullet (- / * / •) and contains a company link,
+    # or has loose spaces/asterisks (e.g. "* [PyGenicArc 🔗](...) *" or "- [PyGenicArc 🔗](...) *"),
+    # clean it to "*[PyGenicArc 🔗](...)*" without any bullet or trailing asterisk.
+    post_lines = []
+    in_exp = False
+    for line in content.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("## PROFESSIONAL EXPERIENCE"):
+            in_exp = True
+        elif stripped.startswith("## "):
+            in_exp = False
+
+        if in_exp:
+            m = re.match(r"^[ \t]*[•●▪◦‣∙\-*]?\s*\*?\s*(\[[^\]]+\]\([^)]+\))[ \t]*\*?[ \t]*$", line)
+            if m:
+                line = f"*{m.group(1)}*"
+        post_lines.append(line)
+    content = "\n".join(post_lines)
 
     return {"tailored_resume": content}
 

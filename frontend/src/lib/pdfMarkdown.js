@@ -48,7 +48,11 @@ export function autolinkMarkdown(markdown) {
  * view and PDF export, so they always agree.
  */
 export function normalizeMarkdown(markdown) {
-  const bulletNormalized = String(markdown || '').replace(/^([ \t]*)[•●▪◦‣∙]\s*/gm, '$1- ');
+  let text = String(markdown || '');
+  // Clean company line under job experience if written with bullet or loose asterisks:
+  // e.g. "- * [PyGenicArc 🔗](url) *" or "* [PyGenicArc 🔗](url) *" -> "*[PyGenicArc 🔗](url)*"
+  text = text.replace(/^[ \t]*[•●▪◦‣∙\-*]?\s*\*?\s*(\[[^\]]+\]\([^)]+\))[ \t]*\*?[ \t]*$/gm, '*$1*');
+  const bulletNormalized = text.replace(/^([ \t]*)[•●▪◦‣∙]\s*/gm, '$1- ');
   return autolinkMarkdown(bulletNormalized);
 }
 
@@ -58,7 +62,7 @@ export function parseMarkdown(markdown) {
 }
 
 const DATE_OR_TIMELINE_REGEX =
-  /\b(?:19|20)\d{2}\b|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b|\b(?:Present|Current|Ongoing|Issued|Expected)\b|\b\d{1,2}[\/.-]\d{2,4}\b|\b(?:Spring|Summer|Fall|Autumn|Winter)\s+\d{4}\b/i;
+  /\b(?:19|20)\d{2}\b|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b|\b(?:Present|Current|Ongoing|Issued|Expected)\b|\b\d{1,2}[/.-]\d{2,4}\b|\b(?:Spring|Summer|Fall|Autumn|Winter)\s+\d{4}\b/i;
 
 const DEMO_OR_LINK_REGEX =
   /^\s*(?:\[[^\]]*\]|\b(?:DEMO|Demo|demo|Code|GitHub|Github|GitLab|Gitlab|Live|Repo|Repository|Preview|Link|Website|App|Docs|Paper)\b)/i;
@@ -155,8 +159,27 @@ export function inlineRuns(nodes = [], marks = {}, linkStyle = '#1f2a3d') {
 
   return nodes.flatMap((node) => {
     switch (node.type) {
-      case 'text':
-        return [{ text: node.value, ...marks }];
+      case 'text': {
+        const val = String(node.value || '');
+        if (/[↗🔗]/u.test(val)) {
+          const parts = [];
+          const regex = /([↗🔗])/gu;
+          let lastIdx = 0;
+          let match;
+          while ((match = regex.exec(val)) !== null) {
+            if (match.index > lastIdx) {
+              parts.push({ text: val.slice(lastIdx, match.index), ...marks });
+            }
+            parts.push({ text: match[1], font: 'ResumeIcons', ...marks });
+            lastIdx = regex.lastIndex;
+          }
+          if (lastIdx < val.length) {
+            parts.push({ text: val.slice(lastIdx), ...marks });
+          }
+          return parts;
+        }
+        return [{ text: val, ...marks }];
+      }
       case 'strong':
         return inlineRuns(node.children, { ...marks, bold: true }, linkStyle);
       case 'emphasis':

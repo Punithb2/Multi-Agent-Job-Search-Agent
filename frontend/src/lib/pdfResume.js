@@ -1,5 +1,5 @@
-import { DEFAULT_FONT, FONT_LINE_RATIOS, resolveFontKey } from './pdfFonts';
-import { NO_LIGATURES, PAGE_WIDTHS, horizontalRule, inlineRuns, parseMarkdown, plainText, splitHeadingChildren } from './pdfMarkdown';
+import { DEFAULT_FONT, FONT_LINE_RATIOS, resolveFontKey } from './pdfFonts.js';
+import { NO_LIGATURES, PAGE_WIDTHS, horizontalRule, inlineRuns, parseMarkdown, plainText, splitHeadingChildren } from './pdfMarkdown.js';
 
 // Used when no style could be read from the uploaded resume (or for documents
 // generated before styles were captured): a clean, ATS-friendly layout.
@@ -28,7 +28,6 @@ export function resolveStyle(style) {
   const lineHeight = source.line_spacing
     ? Math.min(1.6, Math.max(0.9, source.line_spacing / naturalRatio))
     : 1.12;
-  const isOriginalLinkColor = Boolean(source.link?.color);
   const linkColor = source.link?.color || source.accent || '#2563eb';
   const linkUnderline = Boolean(source.link?.underline);
 
