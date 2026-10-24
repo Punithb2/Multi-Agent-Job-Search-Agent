@@ -129,7 +129,7 @@ function resumeDocument(docx, markdown, rawStyle) {
       children.push(new Paragraph({
         alignment: align,
         spacing: { after: pt(headline ? 2 : 4) },
-        children: runsFrom(docx, node.children, { color: muted, ...(headline ? { size: halfPoints(s.body.size + 2) } : {}) }, s.link),
+        children: runsFrom(docx, node.children, { color: muted, ...(headline ? { size: halfPoints(s.body.size + 2) } : {}) }, { ...s.link, color: s.body.color, underline: false }),
       }));
       continue;
     }

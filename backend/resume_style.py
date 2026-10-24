@@ -324,7 +324,7 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
             if (b > r + 0.08) and (b > g + 0.04) and (b >= 0.22) and (_saturation(c) > 0.15) and (_lightness(c) < 0.85):
                 blue_colors.append(c)
 
-    link_color = _mode(blue_colors) if len(blue_colors) >= max(3, len(link_runs) * 0.6) else None
+    link_color = _mode(blue_colors) if blue_colors else None
 
     def clamp(value, low, high):
         return round(max(low, min(high, value)), 1)
@@ -367,3 +367,169 @@ def extract_resume_style(pdf_bytes: bytes) -> dict | None:
             "rule_width": clamp(heading_style["rule_width"] or 1.0, 0.5, 2.5),
         }
     return style
+
+
+def extract_annotated_resume_text(pdf_bytes: bytes) -> str:
+    """Extract resume text with bold formatting and inline markdown links preserved."""
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    annotated_pages = []
+
+    for page in reader.pages:
+        runs, _ = _collect(page)
+        if not runs:
+            annotated_pages.append(page.extract_text() or "")
+            continue
+
+        link_annots = []
+        try:
+            annots = page.get("/Annots")
+            if annots:
+                annot_list = annots.get_object() if hasattr(annots, "get_object") else annots
+                for annot_ref in annot_list:
+                    annot = annot_ref.get_object() if hasattr(annot_ref, "get_object") else annot_ref
+                    if annot and annot.get("/Subtype") == "/Link":
+                        action = annot.get("/A")
+                        if action:
+                            action_obj = action.get_object() if hasattr(action, "get_object") else action
+                            if action_obj.get("/S") == "/URI":
+                                uri = str(action_obj.get("/URI") or "").strip()
+                                rect = annot.get("/Rect")
+                                if uri and rect:
+                                    r = [float(v) for v in rect]
+                                    link_annots.append({
+                                        "uri": uri,
+                                        "x0": min(r[0], r[2]),
+                                        "y0": min(r[1], r[3]),
+                                        "x1": max(r[0], r[2]),
+                                        "y1": max(r[1], r[3]),
+                                    })
+        except Exception:
+            pass
+
+        def get_run_uri(rx, ry, rtext):
+            clean = rtext.strip()
+            if not clean:
+                return None
+            for la in link_annots:
+                if (la["y0"] - 1.5 <= ry <= la["y1"] + 1.5) and (la["x0"] - 4 <= rx <= la["x1"] + 4):
+                    return la["uri"]
+            return None
+
+        # Keep runs, converting bullet characters to markdown bullets
+        valid_runs = []
+        for r in runs:
+            if r["text"].strip() in ("•", "●", "▪", "◦", "‣", "∙"):
+                r["text"] = "- "
+                r["bold"] = False
+            elif r["color"] == (1.0, 1.0, 1.0) and not r["text"].strip():
+                continue
+            valid_runs.append(r)
+
+        # Deduplicate identical text runs that overlay each other at the same position
+        deduped = []
+        for r in valid_runs:
+            rx, ry = r["x"], r["y"]
+            r_clean = r["text"].strip().lower()
+            if not r_clean:
+                deduped.append(r)
+                continue
+            duplicate = False
+            for prev in deduped:
+                if abs(prev["y"] - ry) <= 2.0 and abs(prev["x"] - rx) <= 25.0:
+                    prev_clean = prev["text"].strip().lower()
+                    if prev_clean == r_clean:
+                        if r.get("color") != (0.0, 0.0, 0.0) and prev.get("color") == (0.0, 0.0, 0.0):
+                            prev.update(r)
+                        duplicate = True
+                        break
+            if not duplicate:
+                deduped.append(r)
+
+        lines = _lines(deduped)
+        page_lines = []
+        for line in lines:
+            line_runs = line["runs"]
+            line_segments = []
+            i = 0
+            last_x_end = None
+            while i < len(line_runs):
+                r = line_runs[i]
+                txt = r["text"]
+                if not txt:
+                    i += 1
+                    continue
+                uri = get_run_uri(r["x"], r["y"], txt)
+                is_bold = r["bold"]
+
+                combined_txt = txt
+                j = i + 1
+                while j < len(line_runs):
+                    nr = line_runs[j]
+                    n_uri = get_run_uri(nr["x"], nr["y"], nr["text"])
+                    if nr["bold"] == is_bold and n_uri == uri:
+                        combined_txt += nr["text"]
+                        j += 1
+                    else:
+                        break
+
+                clean_txt = combined_txt.strip()
+                if not clean_txt:
+                    line_segments.append(combined_txt)
+                    last_x_end = line_runs[j-1]["x"] + len(line_runs[j-1]["text"]) * line_runs[j-1]["size"] * 0.5
+                    i = j
+                    continue
+
+                if uri and clean_txt in ("|", "—", "-", "•", ":", "/"):
+                    uri = None
+
+                if uri:
+                    prefix_sep = ""
+                    suffix_sep = ""
+                    core_txt = clean_txt
+                    m_pre = re.match(r"^([|•—\-\s]+)(.*)$", core_txt)
+                    if m_pre:
+                        prefix_sep, core_txt = m_pre.group(1), m_pre.group(2)
+                    m_suf = re.search(r"^(.*?)([|•—\-\s]+)$", core_txt)
+                    if m_suf:
+                        core_txt, suffix_sep = m_suf.group(1), m_suf.group(2)
+
+                    if re.match(r"^DEMO\b", core_txt, re.I) and "↗" not in core_txt and not any(ext in core_txt.lower() for ext in [".com", ".org", ".io", "/"]):
+                        core_txt = f"{core_txt} ↗"
+                    elif re.match(r"^GITHUB\b", core_txt, re.I) and "↗" not in core_txt and not any(ext in core_txt.lower() for ext in [".com", ".org", ".io", "/"]):
+                        core_txt = f"{core_txt} ↗"
+                    elif any(c in core_txt for c in ["Specialization", "Certificate", "PyGenicArc"]) and "🔗" not in core_txt:
+                        core_txt = f"{core_txt} 🔗"
+
+                    link_md = f"[{core_txt}]({uri})"
+                    formatted = f"{prefix_sep}{link_md}{suffix_sep}"
+                else:
+                    formatted = clean_txt
+
+                if is_bold:
+                    formatted = f"**{formatted}**"
+
+                leading_space = ""
+                if line_segments and not line_segments[-1].endswith(" ") and not combined_txt.startswith(" "):
+                    if last_x_end is not None and (r["x"] - last_x_end) > 1.5:
+                        leading_space = " "
+
+                leading_ws = leading_space or (" " if combined_txt.startswith(" ") and not formatted.startswith(" ") else "")
+                trailing_ws = " " if combined_txt.endswith(" ") and not formatted.endswith(" ") else ""
+                line_segments.append(f"{leading_ws}{formatted}{trailing_ws}")
+
+                last_x_end = line_runs[j-1]["x"] + len(line_runs[j-1]["text"]) * line_runs[j-1]["size"] * 0.5
+                i = j
+
+            line_text = "".join(line_segments).strip()
+            line_text = re.sub(r"\s+", " ", line_text)
+            line_text = re.sub(r"\*\*\s+", " **", line_text)
+            line_text = re.sub(r"\s+\*\*", "** ", line_text)
+            line_text = re.sub(r"\*\*\s*\*\*", "", line_text)
+
+            if line_text:
+                page_lines.append(line_text)
+
+        annotated_pages.append("\n".join(page_lines))
+
+    return "\n\n".join(annotated_pages)
+

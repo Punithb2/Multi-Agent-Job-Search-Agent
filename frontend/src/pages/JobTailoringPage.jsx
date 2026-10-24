@@ -115,14 +115,18 @@ export default function JobTailoringPage({
             : `https://${raw}`;
 
         // When viewing the tailored resume, preserve the original link style:
-        // Only show blue if the original PDF had blue; only underline if the original PDF had underline.
-        // Otherwise, render cleanly in the candidate's body text color / inherit without underline.
+        // Header contact details stay in candidate body color,
+        // while body links (DEMO, GITHUB, Company, Certifications) render in vibrant blue.
+        const isContactLink = /mailto:|tel:|linkedin\.com/i.test(targetUrl);
+        const resolvedBlue = documentStyle?.link?.color || '#2563eb';
+        const linkColor = isContactLink ? (documentStyle?.body?.color || 'inherit') : resolvedBlue;
+
         const style = isResume
           ? {
-              color: isOriginalBlue ? documentStyle.link.color : (documentStyle?.body?.color || 'inherit'),
+              color: linkColor,
               textDecoration: isOriginalUnderlined ? 'underline' : 'none',
               textUnderlineOffset: '2.5px',
-              fontWeight: isOriginalBlue ? 600 : 'inherit',
+              fontWeight: isContactLink ? 'inherit' : 600,
             }
           : undefined;
 

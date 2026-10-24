@@ -598,11 +598,17 @@ CRITICAL RULES — ZERO HALLUCINATIONS & ZERO FALSE CLAIMS:
      * If Frontend role: 'Architected responsive React dashboards featuring real-time latency sparklines, public status pages, and clean UI state management integrated with backend monitoring APIs.'
      * If Testing/Verification role: 'Engineered real-time status dashboards backed by an automated GitHub Actions CI/CD pipeline executing 16 automated Pytest verification tests.'
      Notice: Both versions remain 100% grounded in what was built, but emphasize the angle most relevant to the target role!
-6. PRESERVE ALL ORIGINAL SECTIONS, ENTRIES, METADATA & LINKS:
+6. MAINTAIN BOLD FORMATTING ON KEY HIGHLIGHTS:
+   - In bullet points, preserve and highlight key technologies, metrics, performance numbers, and critical impact using markdown `**bold**` (e.g. `**35+ REST API**`, `**500+ concurrent sessions**`, `**PostgreSQL**`, `**sub-300ms**`, `**cutting processing and rendering latency by ~65%**`, `**16 automated Pytest tests**`, `**row-level locking**`).
+   - When rewriting bullets to emphasize skills relevant to the target role, ALWAYS keep key metrics and technologies formatted in `**...**` bold just like in the original resume!
+7. PRESERVE ALL ORIGINAL SECTIONS, ENTRIES, METADATA, LINKS & SYMBOLS:
    - Include EVERY section: CAREER OBJECTIVE, TECHNICAL SKILLS, PROFESSIONAL EXPERIENCE, PROJECTS, EDUCATIONAL BACKGROUND, CERTIFICATIONS.
    - Include EVERY project from the original resume (both UptimeSentinel and CareerAtlas).
    - Each section heading ("## ...") must appear EXACTLY ONCE. Do NOT duplicate headings.
-   - Keep all contact details, profiles, and demo links ([DEMO](url), GitHub, LinkedIn, portfolio) clickable on ONE single line separated by " | ".
+   - Keep all contact details, profiles, and demo links clickable on ONE single line separated by " | ".
+   - Keep all project demo and code links and link symbols intact: `### Project Name | [DEMO ↗](url) | [GITHUB ↗](url)`. Do NOT drop the `↗` arrow or the links!
+   - Keep the company link and link symbol under experience intact: `* [Company Name 🔗](url) *` (e.g. `* [PyGenicArc 🔗](https://pygenicarc.com/) *`). Do NOT remove the company link!
+   - Keep certification links and link symbols intact: `### [Certification Name 🔗](url) — Organization | Issued: Month Year` (or `- [Certification Name 🔗](url) — Organization | Issued: Month Year`).
    - Keep all dates, degrees, institutions, and grades exactly as written in the original.
 
 Output format: Valid Markdown adhering strictly to this syntax:
@@ -611,16 +617,16 @@ Output format: Valid Markdown adhering strictly to this syntax:
 - Contact details on ONE single line, separated by " | ", with clickable markdown links.
 - "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS"). Every section heading must appear exactly ONCE.
 - "### " before the first line of every entry:
-  * For jobs: "### Role / Title | Dates | Location" followed by employer on second line in italics (*Company*).
-  * For projects: "### Project Name | [DEMO](url)" followed by tech stack on second line in italics (*Tech Stack*).
+  * For jobs: "### Role / Title | Dates | Location" followed by employer/company link on second line in italics (* [Company 🔗](url) * or *Company*).
+  * For projects: "### Project Name | [DEMO ↗](url) | [GITHUB ↗](url)" followed by tech stack on second line in italics (*Tech Stack*).
   * For education: "### School / Institution | Dates | Location" followed by degree/grade in italics.
-  * For certifications: "### [Course](url) — Organization | Issued: Month Year" (or without link if original has no link).
-- Bullet points must start with "- ".
+  * For certifications: "### [Course 🔗](url) — Organization | Issued: Month Year" (or bullet `- [Course 🔗](url) — Organization | Issued: Month Year`).
+- Bullet points must start with "- " and use `**bold**` highlights for key numbers, metrics, and technologies.
 - Paragraphs (like Career Objective) must stay as paragraphs.
 
 Syntax structure reference:
 # Candidate Name
-[email@example.com](mailto:email@example.com) | 1234567890 | City | [linkedin.com/in/user](https://linkedin.com) | [github.com/user](https://github.com)
+[email@example.com](mailto:email@example.com) | [1234567890](tel:1234567890) | City | [linkedin.com/in/user](https://linkedin.com) | [github.com/user](https://github.com) | [portfolio.me](https://portfolio.me)
 
 ## CAREER OBJECTIVE
 Paragraph describing genuine background and relevant technical focus...
@@ -630,25 +636,25 @@ Paragraph describing genuine background and relevant technical focus...
 
 ## PROFESSIONAL EXPERIENCE
 ### Title | Dates | Location
-*Company Name*
-- Bullet 1...
-- Bullet 2...
+* [Company Name 🔗](https://company.com) *
+- Implemented **35+ REST API** endpoints and responsive React interfaces with **JWT authentication**...
+- Engineered live exam monitoring for **500+ concurrent sessions**...
 
 ## PROJECTS
-### Project Name | [DEMO](https://example.com)
+### Project Name | [DEMO ↗](https://example.com) | [GITHUB ↗](https://github.com/example)
 *Tech 1, Tech 2, Tech 3*
-- Bullet 1...
+- Built a multi-user HTTP monitoring platform with a **decoupled background worker** using **row-level locking**...
 
-### Project Name 2 | [DEMO](https://example.com)
+### Project Name 2 | [DEMO ↗](https://example.com) | [GITHUB ↗](https://github.com/example)
 *Tech 1, Tech 2, Tech 3*
-- Bullet 1...
+- Built a **resume-aware job search platform**...
 
 ## EDUCATIONAL BACKGROUND
 ### University Name | Dates | Location
 *Degree - Grade*
 
 ## CERTIFICATIONS
-### [Certification Name](https://example.com) — Issuer | Issued: Month Year
+### [Certification Name 🔗](https://example.com) — Issuer | Issued: Month Year
 
 Output ONLY the raw markdown of the resume: no greeting, no conversational text before or after.
 

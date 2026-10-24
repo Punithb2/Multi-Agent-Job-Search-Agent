@@ -29,7 +29,7 @@ export function resolveStyle(style) {
     ? Math.min(1.6, Math.max(0.9, source.line_spacing / naturalRatio))
     : 1.12;
   const isOriginalLinkColor = Boolean(source.link?.color);
-  const linkColor = isOriginalLinkColor ? source.link.color : (body.color || DEFAULT_STYLE.body.color);
+  const linkColor = source.link?.color || source.accent || '#2563eb';
   const linkUnderline = Boolean(source.link?.underline);
 
   return {
@@ -40,7 +40,7 @@ export function resolveStyle(style) {
     link: {
       color: linkColor,
       underline: linkUnderline,
-      isColored: isOriginalLinkColor,
+      isColored: true,
     },
     lineHeight,
     body: { ...body, fontKey: bodyFontKey, color: body.color || DEFAULT_STYLE.body.color, align: bodyAlign },
@@ -116,7 +116,7 @@ export function buildResumeDocument({ markdown, style, density = 0 }) {
     if (nameSeen && !sectionSeen && node.type === 'paragraph') {
       const headline = isItalicLine(node);
       content.push({
-        text: inlineRuns(node.children, {}, s.link),
+        text: inlineRuns(node.children, {}, { ...s.link, color: muted, underline: false }),
         color: muted,
         alignment: s.name.align,
         fontSize: headline ? bodySize + 2 : Math.min(bodySize, 9.5),

@@ -22,7 +22,7 @@ import os
 import re
 from job_extract import UNREADABLE, ExtractionError, extract_job_from_url, find_contact_email
 from resume_changes import compare_resumes
-from resume_style import extract_resume_style
+from resume_style import extract_annotated_resume_text, extract_resume_style
 from security import (
     AUTH_CONFIGURED,
     BUDGET_MESSAGES,
@@ -113,7 +113,13 @@ async def read_resume(resume_pdf: UploadFile) -> tuple[bytes, str]:
         raise HTTPException(status_code=400, detail="The uploaded PDF file is empty.")
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
-        text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        text = ""
+        try:
+            text = extract_annotated_resume_text(pdf_bytes).strip()
+        except Exception:
+            text = ""
+        if not text:
+            text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
         pdf_links = _extract_pdf_links(reader)
         # If the PDF had clickable link annotations whose URLs are not written in the text,
         # append them so the tailoring agent has access to the actual destination URLs.
