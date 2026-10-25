@@ -370,7 +370,10 @@ function App() {
     setReview((current) => ({ ...current, checking: true, error: '' }));
     try {
       const response = await api.post('/api/resume/compare', formData);
-      if (activeJobKey.current === key) setReview((current) => ({ ...current, changes: response.data.changes, checking: false }));
+      if (activeJobKey.current === key) {
+        setReview((current) => ({ ...current, changes: response.data.changes, checking: false }));
+        if (response.data.style) setDocumentStyle((current) => current || response.data.style);
+      }
     } catch (requestError) {
       if (isSignInError(requestError)) promptToSignIn('job', 'Please sign in again', 'Your session has expired. Sign in to keep reviewing your resume.');
       if (activeJobKey.current === key) {

@@ -5,11 +5,11 @@ import { NO_LIGATURES, PAGE_WIDTHS, horizontalRule, inlineRuns, parseMarkdown, p
 // generated before styles were captured): a clean, ATS-friendly layout.
 const DEFAULT_STYLE = {
   page_size: 'A4',
-  margin: 50,
-  body: { font: DEFAULT_FONT, size: 10.5, color: '#1f2a3d', align: 'justify' },
-  name: { font: DEFAULT_FONT, size: 21, bold: true, uppercase: false, align: 'left', color: '#16243d' },
-  heading: { font: DEFAULT_FONT, size: 11.5, bold: true, uppercase: true, color: '#1f3a5f', rule: true, rule_color: '#c9d2e0' },
-  accent: '#1f3a5f',
+  margin: 40,
+  body: { font: DEFAULT_FONT, size: 9.5, color: '#000000', align: 'justify' },
+  name: { font: DEFAULT_FONT, size: 19, bold: true, uppercase: true, align: 'center', color: '#000000' },
+  heading: { font: DEFAULT_FONT, size: 10.5, bold: true, uppercase: true, color: '#000000', rule: true, rule_color: '#000000', rule_width: 0.7 },
+  accent: '#000000',
 };
 
 /** Merge a style read from the resume over the defaults, resolving fonts. */
@@ -22,9 +22,9 @@ export function resolveStyle(style) {
     ? { ...DEFAULT_STYLE.heading, ...source.heading }
     : { ...DEFAULT_STYLE.heading, font: body.font };
   const hasStyle = Boolean(style);
-  const bodyFontKey = hasStyle ? resolveFontKey(body.font) : DEFAULT_FONT;
+  const bodyFontKey = resolveFontKey(body.font, DEFAULT_FONT);
   // Reproduce the original's measured spacing in whichever font stands in for it.
-  const naturalRatio = FONT_LINE_RATIOS[bodyFontKey] || 1.17;
+  const naturalRatio = FONT_LINE_RATIOS[bodyFontKey] || 1.424;
   const lineHeight = source.line_spacing
     ? Math.min(1.6, Math.max(0.9, source.line_spacing / naturalRatio))
     : 1.12;
@@ -43,13 +43,13 @@ export function resolveStyle(style) {
     },
     lineHeight,
     body: { ...body, fontKey: bodyFontKey, color: body.color || DEFAULT_STYLE.body.color, align: bodyAlign },
-    name: { ...name, fontKey: hasStyle ? resolveFontKey(name.font || body.font) : DEFAULT_FONT, color: name.color || body.color || DEFAULT_STYLE.name.color },
+    name: { ...name, fontKey: resolveFontKey(name.font || body.font, DEFAULT_FONT), color: name.color || body.color || DEFAULT_STYLE.name.color },
     heading: {
       ...heading,
-      fontKey: hasStyle ? resolveFontKey(heading.font || body.font) : DEFAULT_FONT,
+      fontKey: resolveFontKey(heading.font || body.font, DEFAULT_FONT),
       color: heading.color || body.color || DEFAULT_STYLE.heading.color,
-      ruleColor: heading.rule_color || heading.color || source.accent || '#9aa5b5',
-      ruleWidth: Math.min(2.5, Math.max(0.5, Number(heading.rule_width) || 0.9)),
+      ruleColor: heading.rule_color || heading.color || source.accent || '#000000',
+      ruleWidth: Math.min(2.5, Math.max(0.5, Number(heading.rule_width) || 0.7)),
     },
   };
 }

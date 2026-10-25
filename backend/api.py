@@ -378,11 +378,10 @@ async def analyze_selected_job(
     # styling, so read it from the uploaded file. No AI request is involved, and a
     # PDF that cannot be read simply gets the default styling.
     style = None
-    if action in ("resume_tailor", "cover_letter"):
-        try:
-            style = extract_resume_style(pdf_bytes)
-        except Exception as style_error:
-            print(f"Resume style could not be read: {style_error}")
+    try:
+        style = extract_resume_style(pdf_bytes)
+    except Exception as style_error:
+        print(f"Resume style could not be read: {style_error}")
 
     state = {"base_resume": resume_text, "selected_job": selected_job}
 
@@ -425,8 +424,13 @@ async def compare_tailored_resume(
 ):
     """Re-check a tailored resume against the original, e.g. after edits. No AI involved."""
     enforce_rate_limit("compare", user_id)
-    _, resume_text = await read_resume(resume_pdf)
-    return {"status": "success", "changes": compare_resumes(resume_text, tailored_resume)}
+    pdf_bytes, resume_text = await read_resume(resume_pdf)
+    style = None
+    try:
+        style = extract_resume_style(pdf_bytes)
+    except Exception:
+        pass
+    return {"status": "success", "changes": compare_resumes(resume_text, tailored_resume), "style": style}
 
 
 @app.post("/api/jobs/extract")
