@@ -119,12 +119,17 @@ function App() {
 
   const goTo = (next) => { setPage(next); setError(''); window.scrollTo(0, 0); };
 
-  /** A resume picked on any page: used for this session, not saved to the profile. */
+  /** A resume picked on any page: updates active resume in-place and syncs to profile if signed in. */
   const attachResume = (file) => {
     resumeRef.current = file;
     setResume(file);
-    setResumeFromProfile(false);
     setError('');
+    if (user && file) {
+      setResumeFromProfile(true);
+      uploadProfileResume(file).catch((err) => console.warn('Could not sync resume to profile in background:', err));
+    } else {
+      setResumeFromProfile(false);
+    }
   };
 
   const goToProfile = () => { setWelcomeProfile(false); setProfileState(EMPTY_PROFILE_STATE); goTo('profile'); };

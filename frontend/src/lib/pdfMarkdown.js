@@ -49,9 +49,51 @@ export function autolinkMarkdown(markdown) {
  */
 export function normalizeMarkdown(markdown) {
   let text = String(markdown || '');
-  // Clean company line under job experience if written with bullet or loose asterisks:
+
+  // 1. Strip conversational chatter and rogue dividers before the candidate's name heading
+  const hashIdx = text.search(/^#[ \t]+/m);
+  if (hashIdx > 0) {
+    const preamble = text.slice(0, hashIdx).trim();
+    if (/here is|certainly|tailored resume|please find|as requested|hope this|strictly to all rules/i.test(preamble) || preamble.startsWith('Here is')) {
+      text = text.slice(hashIdx);
+    }
+  }
+
+  // 2. Ensure all known section headings start with "## " so they receive proper heading styling and horizontal rules
+  text = text.replace(
+    /^[ \t]*[*#]*\s*(CAREER OBJECTIVE|TECHNICAL SKILLS|PROFESSIONAL EXPERIENCE|WORK EXPERIENCE|EXPERIENCE|PROJECTS|KEY PROJECTS|PERSONAL PROJECTS|ACADEMIC PROJECTS|EDUCATIONAL BACKGROUND|EDUCATION|CERTIFICATIONS|CERTIFICATES)\s*[*#]*[ \t]*$/gmi,
+    '## $1'
+  );
+
+  // 3. Clean company line under job experience if written with bullet or loose asterisks:
   // e.g. "- * [PyGenicArc 🔗](url) *" or "* [PyGenicArc 🔗](url) *" -> "*[PyGenicArc 🔗](url)*"
   text = text.replace(/^[ \t]*[•●▪◦‣∙\-*]?\s*\*?\s*(\[[^\]]+\]\([^)]+\))[ \t]*\*?[ \t]*$/gm, '*$1*');
+
+  // 4. Ensure project tech stack line directly under project heading is italicized
+  const lines = text.split('\n');
+  const fixedLines = [];
+  let prevIsProject = false;
+  for (const line of lines) {
+    const stripped = line.trim();
+    if (prevIsProject && stripped && !stripped.startsWith('-') && !stripped.startsWith('#')) {
+      if (!stripped.startsWith('*') || !stripped.endsWith('*')) {
+        fixedLines.push(`*${stripped.replace(/^\*+|\*+$/g, '')}*`);
+      } else {
+        fixedLines.push(line);
+      }
+      prevIsProject = false;
+    } else {
+      if (stripped.startsWith('### ') && (stripped.includes('DEMO') || stripped.includes('GITHUB') || /UptimeSentinel|CareerAtlas|Platform|Project/i.test(stripped))) {
+        prevIsProject = true;
+      } else {
+        prevIsProject = false;
+      }
+      fixedLines.push(line);
+    }
+  }
+  text = fixedLines.join('\n');
+
+  // 5. Convert bullets to standard "- "
   const bulletNormalized = text.replace(/^([ \t]*)[•●▪◦‣∙]\s*/gm, '$1- ');
   return autolinkMarkdown(bulletNormalized);
 }

@@ -571,7 +571,7 @@ def resume_tailor_node(state: AgentState):
     prompt = f"""
 You are an expert technical resume writer and ATS optimization specialist.
 
-YOUR MISSION: Tailor and elevate the candidate's existing resume to highlight their strongest qualifications for the target role, by sharpening the language, reordering technical skills, and highlighting relevant engineering achievements — while keeping 100% of the facts truthful.
+YOUR MISSION: Tailor and elevate the candidate's existing resume to highlight their strongest qualifications for the target role, by sharpening the language, actively adapting achievements across experience AND projects, reordering technical skills, and maintaining crisp ATS formatting — while keeping 100% of the facts truthful.
 
 CRITICAL RULES — ZERO HALLUCINATIONS & ZERO FALSE CLAIMS:
 1. NEVER INVENT OR ADD UNPOSSESSED SKILLS OR DOMAINS:
@@ -582,47 +582,40 @@ CRITICAL RULES — ZERO HALLUCINATIONS & ZERO FALSE CLAIMS:
    - Hiring company: "{company}".
    - A resume is a candidate's personal professional profile, NOT a cover letter.
    - NEVER mention "{company}" or any target company name anywhere in the resume body or Career Objective. (No "contribute to {company}", no "seeking to join {company}", etc.).
-3. NEVER INVENT YEARS OF EXPERIENCE OR SENIORITY:
+3. NEVER INVENT YEARS OF EXPERIENCE OR FALSE TITLES:
    - Do NOT invent or inflate years of experience (no "1.5 years", "2 years", "Senior" if not in original). Preserve the candidate's genuine seniority (e.g., "Computer Science and Engineering graduate").
+   - NEVER claim past hands-on experience in a job title or domain you have not held (e.g., if applying for 'LMS Administrator' or 'Cloud Architect', do NOT write 'experience in LMS administration' — state your real qualifications: e.g. "Computer Science and Engineering graduate with hands-on experience in PostgreSQL, Python backend services, user authentication, and data workflows... seeking to leverage technical problem-solving and database skills as an LMS Administrator Intern").
 4. TAILOR CAREER OBJECTIVE VIA OVERLAP ONLY:
    - Rewrite the Career Objective to highlight the intersection of the candidate's GENUINE skills with the target role.
    - Connect their actual background (e.g., Python, React, FastAPI, PostgreSQL, APIs, automated testing) to the engineering qualities the target role needs.
-   - Focus on what the candidate CAN truthfully offer. Do NOT claim unpossessed domains or target company names.
-5. ACTIVELY REWRITE BULLETS TO HIGHLIGHT ROLE-RELEVANT IMPACT (EXACT 1-TO-1 PARITY):
+   - Focus on what the candidate CAN truthfully offer.
+5. ACTIVELY TAILOR BOTH PROFESSIONAL EXPERIENCE AND BOTH PROJECTS:
+   - Do NOT just copy projects verbatim! You MUST actively tailor the bullet points across BOTH the internship (PyGenicArc) AND BOTH projects (UptimeSentinel and CareerAtlas).
    - For every entry, you MUST keep EXACTLY the same number of bullets as the original (PyGenicArc: 4 bullets; UptimeSentinel: 4 bullets; CareerAtlas: 4 bullets).
    - NEVER drop bullets. NEVER merge bullets.
    - NEVER truncate sentences. Every bullet must be a complete, well-formed sentence ending with proper punctuation.
-   - ACTIVELY REWRITE each bullet using strong engineering action verbs (Engineered, Architected, Designed, Implemented, Optimized, Delivered) to emphasize the technical aspects most relevant to the target role (e.g., frontend UX/responsiveness, API performance, concurrency, test automation, system reliability) while staying 100% grounded in what the candidate actually built in that project.
-   - Example of active bullet tailoring without inventing:
-     * Original: 'Delivered real-time dashboards with latency sparklines, public status pages, automated 30-day data pruning, and a GitHub Actions CI/CD pipeline with 16 automated Pytest tests.'
-     * If Frontend role: 'Architected responsive React dashboards featuring real-time latency sparklines, public status pages, and clean UI state management integrated with backend monitoring APIs.'
-     * If Testing/Verification role: 'Engineered real-time status dashboards backed by an automated GitHub Actions CI/CD pipeline executing 16 automated Pytest verification tests.'
-     Notice: Both versions remain 100% grounded in what was built, but emphasize the angle most relevant to the target role!
-6. MAINTAIN BOLD FORMATTING ON KEY HIGHLIGHTS:
-   - In bullet points, preserve and highlight key technologies, metrics, performance numbers, and critical impact using markdown `**bold**` (e.g. `**35+ REST API**`, `**500+ concurrent sessions**`, `**PostgreSQL**`, `**sub-300ms**`, `**cutting processing and rendering latency by ~65%**`, `**16 automated Pytest tests**`, `**row-level locking**`).
-   - When rewriting bullets to emphasize skills relevant to the target role, ALWAYS keep key metrics and technologies formatted in `**...**` bold just like in the original resume!
+   - Emphasize the architectural facets of what was ACTUALLY built that best match the target role:
+     * If the role focuses on Database / Admin / SQL: Highlight PostgreSQL schema design, row-level locking, JSONB queries, data migration, and Supabase Row Level Security.
+     * If the role focuses on System Reliability / Support / Monitoring: Highlight incident detection thresholds, automated email alerts, guaranteed recovery notifications, error logging, and uptime status pages.
+     * If the role focuses on User Management / Security: Highlight JWT authentication, role-based access control, Supabase Auth, and owner-scoped authorization.
+     * If the role focuses on Testing / Quality: Highlight automated CI/CD pipelines, 16 automated Pytest tests, and bug prevention.
+     * If the role focuses on Frontend / UI: Highlight React dashboards, real-time sparklines, Material UI, and responsive interfaces.
+     * If the role focuses on AI / Automation: Highlight LangGraph agent workflows, Gemini LLM integrations, and PDF extraction pipelines.
+6. MANDATORY BOLD FORMATTING ON HIGHLIGHTS:
+   - In EVERY bullet point, preserve and highlight key technologies, metrics, performance numbers, and critical impact using markdown `**bold**` (e.g. `**35+ REST API**`, `**500+ concurrent sessions**`, `**PostgreSQL**`, `**sub-300ms**`, `**cutting processing and rendering latency by ~65%**`, `**16 automated Pytest tests**`, `**row-level locking**`, `**Row Level Security**`).
+   - Every single bullet must contain 2 to 3 bold highlights. NEVER output plain unbolded bullets!
 7. PRESERVE ALL ORIGINAL SECTIONS, ENTRIES, METADATA, LINKS & SYMBOLS:
    - Include EVERY section: CAREER OBJECTIVE, TECHNICAL SKILLS, PROFESSIONAL EXPERIENCE, PROJECTS, EDUCATIONAL BACKGROUND, CERTIFICATIONS.
    - Include EVERY project from the original resume (both UptimeSentinel and CareerAtlas).
-   - Each section heading ("## ...") must appear EXACTLY ONCE. Do NOT duplicate headings.
+   - Each section heading ("## ...") must appear EXACTLY ONCE.
    - Keep all contact details, profiles, and demo links clickable on ONE single line separated by " | ".
    - Keep all project demo and code links and link symbols intact: `### Project Name | [DEMO ↗](url) | [GITHUB ↗](url)`. Do NOT drop the `↗` arrow or the links!
    - Keep the company link and link symbol under experience intact: `*[Company Name 🔗](url)*` (e.g. `*[PyGenicArc 🔗](https://pygenicarc.com/)*`). Do NOT add a bullet before it and do NOT put spaces inside the asterisks!
    - Keep certification links and link symbols intact: `### [Certification Name 🔗](url) — Organization | Issued: Month Year` (or `- [Certification Name 🔗](url) — Organization | Issued: Month Year`).
    - Keep all dates, degrees, institutions, and grades exactly as written in the original.
 
-Output format: Valid Markdown adhering strictly to this syntax:
-- "# " before the candidate's name.
-- Headline under the name only if in original, wrapped in single asterisks (*Headline*).
-- Contact details on ONE single line, separated by " | ", with clickable markdown links.
-- "## " before EVERY section heading (e.g. "## CAREER OBJECTIVE", "## TECHNICAL SKILLS", "## PROFESSIONAL EXPERIENCE", "## PROJECTS", "## EDUCATIONAL BACKGROUND", "## CERTIFICATIONS"). Every section heading must appear exactly ONCE.
-- "### " before the first line of every entry:
-  * For jobs: "### Role / Title | Dates | Location" followed by employer/company link on second line in italics (*[Company 🔗](url)* or *Company*). The company line MUST NOT have a bullet point!
-  * For projects: "### Project Name | [DEMO ↗](url) | [GITHUB ↗](url)" followed by tech stack on second line in italics (*Tech Stack*).
-  * For education: "### School / Institution | Dates | Location" followed by degree/grade in italics.
-  * For certifications: "### [Course 🔗](url) — Organization | Issued: Month Year" (or bullet `- [Course 🔗](url) — Organization | Issued: Month Year`).
-- Bullet points must start with "- " and use `**bold**` highlights for key numbers, metrics, and technologies.
-- Paragraphs (like Career Objective) must stay as paragraphs.
+CRITICAL INSTRUCTION: Start your output IMMEDIATELY with '# [Candidate Name]'.
+Do NOT output ANY introductory sentence, greeting, explanation, acknowledgment, preamble, or markdown divider (no "Here is the tailored resume...", no "---", etc.). Output ONLY the raw resume markdown.
 
 Syntax structure reference:
 # Candidate Name
@@ -642,11 +635,11 @@ Paragraph describing genuine background and relevant technical focus...
 
 ## PROJECTS
 ### Project Name | [DEMO ↗](https://example.com) | [GITHUB ↗](https://github.com/example)
-*Tech 1, Tech 2, Tech 3*
+*Python, FastAPI, React, PostgreSQL(Neon), SQLAlchemy, Alembic, JWT, GitHub Actions, Vercel, Render*
 - Built a multi-user HTTP monitoring platform with a **decoupled background worker** using **row-level locking**...
 
 ### Project Name 2 | [DEMO ↗](https://example.com) | [GITHUB ↗](https://github.com/example)
-*Tech 1, Tech 2, Tech 3*
+*FastAPI, React, LangGraph, Gemini, Supabase, Vercel, Render*
 - Built a **resume-aware job search platform**...
 
 ## EDUCATIONAL BACKGROUND
@@ -655,8 +648,6 @@ Paragraph describing genuine background and relevant technical focus...
 
 ## CERTIFICATIONS
 ### [Certification Name 🔗](https://example.com) — Issuer | Issued: Month Year
-
-Output ONLY the raw markdown of the resume: no greeting, no conversational text before or after.
 
 Original resume:
 {state['base_resume']}
@@ -676,7 +667,45 @@ Title: {title}
         content = re.sub(r"^```(?:markdown)?\s*\n?|\n?```$", "", raw_text, flags=re.IGNORECASE).strip()
 
     # Post-Processing Safety Guardrails:
-    # 1. Deduplicate consecutive identical section headings or plain headings followed by markdown headings
+    # 1. Strip any conversational preamble before the candidate's name heading
+    heading_match = re.search(r"(^#[ \t]+[^\n]+[\s\S]*)", content, flags=re.MULTILINE)
+    if heading_match:
+        content = heading_match.group(1).strip()
+    elif not content.startswith("# "):
+        content = re.sub(r"^\*\*([A-Za-z\s.]+)\*\*", r"# \1", content, count=1)
+
+    # 2. Strip any trailing conversational chatter at the end
+    content = re.sub(r"\n+(?:here is|hope this helps|let me know|best of luck|feel free)[\s\S]*$", "", content, flags=re.IGNORECASE).strip()
+
+    # 3. Ensure all known section headings start with "## " so they receive proper heading styling and horizontal rules
+    SECTION_NAMES = [
+        "CAREER OBJECTIVE",
+        "PROFESSIONAL SUMMARY",
+        "SUMMARY",
+        "OBJECTIVE",
+        "TECHNICAL SKILLS",
+        "SKILLS",
+        "PROFESSIONAL EXPERIENCE",
+        "WORK EXPERIENCE",
+        "EXPERIENCE",
+        "PROJECTS",
+        "KEY PROJECTS",
+        "PERSONAL PROJECTS",
+        "ACADEMIC PROJECTS",
+        "EDUCATIONAL BACKGROUND",
+        "EDUCATION",
+        "CERTIFICATIONS",
+        "CERTIFICATES",
+    ]
+    for sec in SECTION_NAMES:
+        content = re.sub(
+            rf"^[ \t]*[*#]*\s*({re.escape(sec)})\s*[*#]*[ \t]*$",
+            rf"## \1",
+            content,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+
+    # 4. Deduplicate consecutive identical section headings
     cleaned_lines = []
     prev_line = None
     for line in content.split("\n"):
@@ -690,7 +719,7 @@ Title: {title}
             prev_line = stripped
     content = "\n".join(cleaned_lines)
 
-    # 2. Company name scrub: If target company name appears in the resume body, scrub it
+    # 5. Company name scrub: If target company name appears in the resume body, scrub it
     if company and len(company) > 2:
         pattern = re.compile(
             rf"\b(?:to\s+contribute\s+to\s+)?{re.escape(company)}(?:'s)?(?:\s+(?:cutting-edge\s+)?transport\s+and\s+infrastructure\s+solutions)?\b",
@@ -698,12 +727,14 @@ Title: {title}
         )
         content = pattern.sub("a forward-thinking engineering team", content)
 
-    # 3. Clean up company lines in professional experience:
+    # 6. Clean up company lines in professional experience:
     # If a line in experience starts with a bullet (- / * / •) and contains a company link,
     # or has loose spaces/asterisks (e.g. "* [PyGenicArc 🔗](...) *" or "- [PyGenicArc 🔗](...) *"),
     # clean it to "*[PyGenicArc 🔗](...)*" without any bullet or trailing asterisk.
+    # 7. Ensure project tech stack line directly under project heading is italicized (*Tech Stack*)
     post_lines = []
     in_exp = False
+    prev_was_proj = False
     for line in content.split("\n"):
         stripped = line.strip()
         if stripped.startswith("## PROFESSIONAL EXPERIENCE"):
@@ -715,6 +746,16 @@ Title: {title}
             m = re.match(r"^[ \t]*[•●▪◦‣∙\-*]?\s*\*?\s*(\[[^\]]+\]\([^)]+\))[ \t]*\*?[ \t]*$", line)
             if m:
                 line = f"*{m.group(1)}*"
+
+        if prev_was_proj and stripped and not stripped.startswith("-") and not stripped.startswith("#"):
+            if not (stripped.startswith("*") and stripped.endswith("*")):
+                line = f"*{stripped.strip('*')}*"
+            prev_was_proj = False
+        elif stripped.startswith("### ") and ("DEMO" in stripped or "GITHUB" in stripped or any(p in stripped for p in ["UptimeSentinel", "CareerAtlas"])):
+            prev_was_proj = True
+        else:
+            prev_was_proj = False
+
         post_lines.append(line)
     content = "\n".join(post_lines)
 
